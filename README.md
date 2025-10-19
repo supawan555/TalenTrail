@@ -1,20 +1,23 @@
 # TalenTrail
 
 Setup FastAPI in Terminal 
-#Install Enviroment
+# Install Enviroment
 
 python -m venv env 
 
-#Activate Env
+# Activate Env
 
 .\env\Scripts\activate
 
-#install FastAPI and Unicorn(Lightwweight ASGI Sever มาตรฐานการติดต่อกันระหว่าง Web Server และ Python Web application)
+# install FastAPI and Unicorn(Lightwweight ASGI Sever มาตรฐานการติดต่อกันระหว่าง Web Server และ Python Web application)
 
 pip install fastapi uvicorn
 
+# install MongoDB
+
+pip install pymongo
 
 
-#Run Server 
+# Run Server 
 
 uvicorn main:app --reload     
