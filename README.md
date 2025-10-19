@@ -12,3 +12,9 @@ python -m venv env
 #install FastAPI and Unicorn(Lightwweight ASGI Sever มาตรฐานการติดต่อกันระหว่าง Web Server และ Python Web application)
 
 pip install fastapi uvicorn
+
+
+
+#Run Server 
+
+uvicorn main:app --reload     
