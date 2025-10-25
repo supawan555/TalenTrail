@@ -1,0 +1,30 @@
+# Node
+node_modules/
+**/node_modules/
+
+# Build output
+dist/
+.vite/
+
+# Env files
+.env
+.env.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# TypeScript
+*.tsbuildinfo
+
+# Editor directories
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# Python caches (backend folder)
+__pycache__/
+*.pyc
