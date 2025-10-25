@@ -1,5 +1,7 @@
 # TalenTrail
 
+# npm install
+
 Setup FastAPI in Terminal 
 # Install Enviroment
 
@@ -9,7 +11,7 @@ python -m venv env
 
 .\env\Scripts\activate
 
-# install FastAPI and Unicorn(Lightwweight ASGI Sever มาตรฐานการติดต่อกันระหว่าง Web Server และ Python Web application)
+# install FastAPI and Unicorn
 
 pip install fastapi uvicorn
 
