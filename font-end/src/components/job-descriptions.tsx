@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -9,13 +9,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { Plus, Search, Edit, Trash2, Briefcase } from 'lucide-react';
-import { JobDescription, mockJobDescriptions } from '../lib/mock-data';
+import { JobDescription } from '../lib/mock-data';
+// API base (can be overridden with Vite env VITE_API_URL)
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 import { toast } from 'sonner@2.0.3';
 
 const DEPARTMENTS = ['Engineering', 'Design', 'Product', 'Marketing', 'Sales', 'Operations'];
 
 export function JobDescriptions() {
-  const [jobDescriptions, setJobDescriptions] = useState<JobDescription[]>(mockJobDescriptions);
+  const [jobDescriptions, setJobDescriptions] = useState<JobDescription[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState('all');
@@ -32,6 +34,23 @@ export function JobDescriptions() {
   // Get unique roles from job descriptions
   const uniqueRoles = Array.from(new Set(jobDescriptions.map(jd => jd.role))).sort();
 
+  // Load job descriptions from backend on mount
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/job-descriptions/`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data: JobDescription[] = await res.json();
+        setJobDescriptions(data);
+      } catch (err) {
+        console.error('Failed to load job descriptions', err);
+        // keep UI usable with empty list and show toast
+        try { toast.error('Failed to load job descriptions from server'); } catch {}
+      }
+    };
+    load();
+  }, []);
+
   // Filter job descriptions
   const filteredJobs = jobDescriptions.filter(job => {
     const matchesSearch = 
@@ -42,24 +61,34 @@ export function JobDescriptions() {
     return matchesSearch && matchesDepartment && matchesRole;
   });
 
-  const handleAddJob = () => {
+  const handleAddJob = async () => {
     if (!formDepartment || !formRole.trim() || !formDescription.trim()) {
       toast.error('Please fill in all fields');
       return;
     }
 
-    const newJob: JobDescription = {
-      id: `jd${Date.now()}`,
+    const payload = {
       department: formDepartment,
       role: formRole,
       description: formDescription,
-      createdDate: new Date().toISOString().split('T')[0]
     };
 
-    setJobDescriptions(prev => [newJob, ...prev]);
-    resetForm();
-    setShowAddDialog(false);
-    toast.success('Job description created successfully!');
+    try {
+      const res = await fetch(`${API_BASE}/job-descriptions/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(`Failed to create (${res.status})`);
+      const created: JobDescription = await res.json();
+      setJobDescriptions(prev => [created, ...prev]);
+      resetForm();
+      setShowAddDialog(false);
+      toast.success('Job description created successfully!');
+    } catch (err) {
+      console.error('Create job failed', err);
+      toast.error('Failed to create job description');
+    }
   };
 
   const handleEditJob = () => {
