@@ -15,6 +15,8 @@ python -m venv env
 
 pip install fastapi uvicorn
 
+pip install python-multipart
+
 # install MongoDB
 
 pip install pymongo
