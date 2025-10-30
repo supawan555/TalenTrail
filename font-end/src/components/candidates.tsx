@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -19,28 +19,55 @@ import {
   Users
 } from 'lucide-react';
 import { AddCandidateModal } from './add-candidate-modal';
-import { mockCandidates, Candidate } from '../lib/mock-data';
+import { Candidate } from '../lib/mock-data';
+
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
 interface CandidatesProps {
   onCandidateSelect: (candidate: Candidate) => void;
-  candidates?: Candidate[];
-  onAddCandidate?: (candidate: Candidate) => void;
 }
 
-export function Candidates({ onCandidateSelect, candidates: propCandidates, onAddCandidate }: CandidatesProps) {
+export function Candidates({ onCandidateSelect }: CandidatesProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [allCandidates, setAllCandidates] = useState<Candidate[]>([]);
   const [stageFilter, setStageFilter] = useState('all');
   const [sortBy, setSortBy] = useState('recent');
   const [showAddModal, setShowAddModal] = useState(false);
 
-  // Use provided candidates or fallback to mock data
-  const allCandidates = propCandidates || mockCandidates;
-  
   // Filter out archived candidates (rejected and drop-off)
   const activeCandidates = allCandidates.filter(c => c.stage !== 'rejected' && c.stage !== 'drop-off');
 
-  const handleAddCandidate = (newCandidate: Candidate) => {
-    onAddCandidate?.(newCandidate);
+  // Load candidates from backend on mount
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/candidates/`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data: Candidate[] = await res.json();
+        setAllCandidates(data);
+      } catch (err) {
+        console.error('Failed to load candidates', err);
+        // fallback to empty list
+        setAllCandidates([]);
+      }
+    };
+    load();
+  }, []);
+
+  const handleAddCandidate = async (newCandidate: Candidate) => {
+    try {
+      const res = await fetch(`${API_BASE}/candidates/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newCandidate),
+      });
+      if (!res.ok) throw new Error(`Create failed (${res.status})`);
+      const created: Candidate = await res.json();
+      setAllCandidates(prev => [created, ...prev]);
+    } catch (err) {
+      console.error('Add candidate failed', err);
+      // still call local handler to update UI if desired; for now we just log
+    }
   };
 
   const filteredCandidates = activeCandidates.filter(candidate => {

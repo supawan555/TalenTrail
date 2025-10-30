@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form@7.55.0';
+import { useForm } from 'react-hook-form';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -8,6 +8,7 @@ import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Badge } from './ui/badge';
 import { toast } from 'sonner@2.0.3';
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 import { 
   Upload, 
   X, 
@@ -192,9 +193,45 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
     }
   };
 
-  const onSubmit = (data: CandidateFormData) => {
+  const onSubmit = async (data: CandidateFormData) => {
     if (!selectedPosition) {
       toast.error('Please select a position');
+      return;
+    }
+
+  // Upload files (profile picture and resume) if present
+  let uploadedAvatarUrl = profilePicturePreview || candidate?.avatar || null;
+  let uploadedResumeUrl = candidate?.resumeUrl || null;
+  let uploadedResumeAnalysis: any = null;
+
+  try {
+      if (profilePicture) {
+        const fd = new FormData();
+        fd.append('file', profilePicture, profilePicture.name);
+        const res = await fetch(`${API_BASE}/upload/profile-picture`, {
+          method: 'POST',
+          body: fd,
+        });
+        if (!res.ok) throw new Error(`Avatar upload failed (${res.status})`);
+        const json = await res.json();
+        uploadedAvatarUrl = json.url;
+      }
+
+      if (resumeFile) {
+        const fd2 = new FormData();
+        fd2.append('file', resumeFile, resumeFile.name);
+        const res2 = await fetch(`${API_BASE}/upload/resume`, {
+          method: 'POST',
+          body: fd2,
+        });
+        if (!res2.ok) throw new Error(`Resume upload failed (${res2.status})`);
+        const json2 = await res2.json();
+        uploadedResumeUrl = json2.url;
+        uploadedResumeAnalysis = json2.analysis ?? null;
+      }
+    } catch (err) {
+      console.error('File upload error', err);
+      toast.error('Failed to upload files. Please try again.');
       return;
     }
 
@@ -223,7 +260,7 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
       name: data.name,
       email: candidate?.email || 'candidate@example.com', // Default email
       phone: candidate?.phone || '+1 234 567 8900', // Default phone
-      avatar: profilePicturePreview || candidate?.avatar || `https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face`,
+      avatar: uploadedAvatarUrl || profilePicturePreview || candidate?.avatar || `https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face`,
       position: selectedPosition,
       department: candidate?.department || getDepartmentFromPosition(selectedPosition),
       experience: data.experience,
@@ -234,7 +271,8 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
       skills: candidate?.skills || ['JavaScript', 'React', 'TypeScript'], // Default skills
       salary: candidate?.salary || '$80,000 - $100,000', // Default salary
       availability: candidate?.availability || 'Immediate', // Default availability
-      resumeUrl: resumeFile ? URL.createObjectURL(resumeFile) : candidate?.resumeUrl,
+      resumeUrl: uploadedResumeUrl || (resumeFile ? URL.createObjectURL(resumeFile) : candidate?.resumeUrl),
+      resumeAnalysis: uploadedResumeAnalysis || candidate?.resumeAnalysis || null,
       notes: candidate?.notes || []
     };
 
@@ -336,7 +374,7 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
                             type="file"
                             accept="image/*"
                             onChange={handleImageChange}
-                            className="hidden"
+                            className="sr-only"
                           />
                         </label>
                       </div>
@@ -446,13 +484,13 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
                       <Button type="button" variant="outline" size="sm" className="mt-2">
                         Browse Files
                       </Button>
-                      <input
-                        id="resume-upload"
-                        type="file"
-                        accept=".pdf"
-                        onChange={handleFileChange}
-                        className="hidden"
-                      />
+                          <input
+                            id="resume-upload"
+                            type="file"
+                            accept=".pdf"
+                            onChange={handleFileChange}
+                            className="sr-only"
+                          />
                     </label>
                   </div>
                   <p className="text-xs text-muted-foreground">PDF files only, max 10MB</p>
