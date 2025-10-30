@@ -9,7 +9,7 @@ export interface Candidate {
   experience: string;
   location: string;
   matchScore: number;
-  stage: 'applied' | 'screening' | 'interview' | 'final' | 'hired' | 'rejected';
+  stage: 'applied' | 'screening' | 'interview' | 'final' | 'hired' | 'rejected' | 'drop-off';
   appliedDate: string;
   resumeUrl?: string;
   skills: string[];

@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
@@ -7,7 +8,6 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Badge } from './ui/badge';
-import { toast } from 'sonner@2.0.3';
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 import { 
   Upload, 
@@ -17,63 +17,7 @@ import {
   Image
 } from 'lucide-react';
 
-const AVAILABLE_POSITIONS = [
-  'Software Engineer',
-  'Software Developer',
-  'Full Stack Developer',
-  'Backend Developer',
-  'Frontend Developer',
-  'Data Scientist',
-  'Machine Learning Engineer',
-  'AI Engineer',
-  'DevOps Engineer',
-  'Cloud Engineer',
-  'Data Analyst',
-  'Business Intelligence Analyst',
-  'QA Engineer',
-  'Test Automation Engineer',
-  'iOS Mobile App Developer',
-  'Android Mobile App Developer',
-  'Vibe Coder',
-  'UI Designer',
-  'UX Designer',
-  'Product Designer',
-  'Cybersecurity Analyst',
-  'Python Developer',
-  'Data Engineer',
-  'Network Engineer',
-  'Cloud Architect',
-  'Systems Engineer',
-  'Java Developer',
-  '.NET Developer',
-  'Web Developer',
-  'Software Tester (SDET)',
-  'Solutions Architect',
-  'Big Data Specialist',
-  'Fintech Engineer',
-  'AI Prompt Engineer',
-  'Blockchain Developer',
-  'Robotics Engineer',
-  'Javascript Developer',
-  'AR/VR Developer',
-  'IoT Engineer',
-  'Ethical Hacker',
-  'Site Reliability Engineer (SRE)',
-  'Game Developer',
-  'Product Manager',
-  'Project Manager',
-  'Marketing Specialist',
-  'Digital Marketing Specialist',
-  'SEO Specialist',
-  'Content Writer',
-  'Copywriter',
-  'Business Analyst',
-  'Operations Manager',
-  'Sales Executive',
-  'Technical Writer',
-  'Market Research Analyst',
-  'Graphic Designer'
-];
+// Roles will be loaded from backend job descriptions to stay consistent with DB
 
 interface AddCandidateModalProps {
   open: boolean;
@@ -89,12 +33,17 @@ interface CandidateFormData {
 }
 
 export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandidateModalProps) {
+  const [roles, setRoles] = useState<string[]>([]);
+  const [rolesLoading, setRolesLoading] = useState<boolean>(false);
+  const [rolesError, setRolesError] = useState<string | null>(null);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [profilePicture, setProfilePicture] = useState<File | null>(null);
   const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(candidate?.avatar || null);
   const [dragActive, setDragActive] = useState(false);
   const [imageDragActive, setImageDragActive] = useState(false);
   const [selectedPosition, setSelectedPosition] = useState(candidate?.position || '');
+  const pictureInputRef = useRef<HTMLInputElement | null>(null);
+  const resumeInputRef = useRef<HTMLInputElement | null>(null);
 
   const isEditMode = !!candidate;
 
@@ -118,6 +67,38 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
       setSelectedPosition(candidate.position);
     }
   }, [candidate, form]);
+
+  // Load roles from backend job descriptions so dropdown stays consistent with DB
+  useEffect(() => {
+    const loadRoles = async () => {
+      setRolesLoading(true);
+      setRolesError(null);
+      try {
+        const res = await fetch(`${API_BASE}/job-descriptions/`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data: Array<{ role?: string }> = await res.json();
+        const unique = Array.from(
+          new Set(
+            (data || [])
+              .map(d => (d.role || '').trim())
+              .filter(r => r.length > 0)
+          )
+        ).sort((a, b) => a.localeCompare(b));
+        setRoles(unique);
+        // If a candidate has an existing role not in DB list, preserve it in dropdown
+        if (selectedPosition && unique.indexOf(selectedPosition) === -1) {
+          setRoles(prev => [selectedPosition, ...prev]);
+        }
+      } catch (err: any) {
+        console.error('Failed to load roles', err);
+        setRolesError('Failed to load roles');
+        // fallback: leave roles empty; user can still select after we show message
+      } finally {
+        setRolesLoading(false);
+      }
+    };
+    loadRoles();
+  }, [selectedPosition]);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -365,8 +346,14 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
                       <Image className="h-8 w-8 mx-auto text-muted-foreground" />
                       <div>
                         <p>Drag and drop an image here, or</p>
-                        <label htmlFor="profile-picture-upload">
-                          <Button type="button" variant="outline" size="sm" className="mt-2">
+                        <label>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="mt-2"
+                            onClick={() => pictureInputRef.current?.click()}
+                          >
                             Browse Files
                           </Button>
                           <input
@@ -375,6 +362,7 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
                             accept="image/*"
                             onChange={handleImageChange}
                             className="sr-only"
+                            ref={pictureInputRef}
                           />
                         </label>
                       </div>
@@ -395,7 +383,7 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
                 <Label htmlFor="position">Position Applied For *</Label>
                 <Select 
                   value={selectedPosition} 
-                  onValueChange={(value) => {
+                  onValueChange={(value: string) => {
                     setSelectedPosition(value);
                     form.setValue('position', value);
                   }}
@@ -404,7 +392,16 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
                     <SelectValue placeholder="Select position..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {AVAILABLE_POSITIONS.map((position) => (
+                    {rolesLoading && (
+                      <div className="px-3 py-2 text-sm text-muted-foreground">Loading roles...</div>
+                    )}
+                    {!rolesLoading && rolesError && (
+                      <div className="px-3 py-2 text-sm text-destructive">{rolesError}</div>
+                    )}
+                    {!rolesLoading && !rolesError && roles.length === 0 && (
+                      <div className="px-3 py-2 text-sm text-muted-foreground">No roles available</div>
+                    )}
+                    {!rolesLoading && roles.map((position: string) => (
                       <SelectItem key={position} value={position}>
                         {position}
                       </SelectItem>
@@ -422,7 +419,7 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
                 <Label htmlFor="experience">Experience Level</Label>
                 <Select 
                   value={form.watch('experience')}
-                  onValueChange={(value) => form.setValue('experience', value)}
+                  onValueChange={(value: string) => form.setValue('experience', value)}
                 >
                   <SelectTrigger id="experience">
                     <SelectValue placeholder="Select experience level" />
@@ -480,16 +477,23 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
                   <Upload className="h-8 w-8 mx-auto text-muted-foreground" />
                   <div>
                     <p>Drag and drop a PDF file here, or</p>
-                    <label htmlFor="resume-upload">
-                      <Button type="button" variant="outline" size="sm" className="mt-2">
+                    <label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="mt-2"
+                        onClick={() => resumeInputRef.current?.click()}
+                      >
                         Browse Files
                       </Button>
                           <input
                             id="resume-upload"
                             type="file"
-                            accept=".pdf"
+                            accept="application/pdf,.pdf"
                             onChange={handleFileChange}
                             className="sr-only"
+                            ref={resumeInputRef}
                           />
                     </label>
                   </div>

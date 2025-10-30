@@ -12,7 +12,7 @@ import { Plus, Search, Edit, Trash2, Briefcase } from 'lucide-react';
 import { JobDescription } from '../lib/mock-data';
 // API base (can be overridden with Vite env VITE_API_URL)
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 const DEPARTMENTS = ['Engineering', 'Design', 'Product', 'Marketing', 'Sales', 'Operations'];
 
@@ -91,32 +91,51 @@ export function JobDescriptions() {
     }
   };
 
-  const handleEditJob = () => {
+  const handleEditJob = async () => {
     if (!selectedJob || !formDepartment || !formRole.trim() || !formDescription.trim()) {
       toast.error('Please fill in all fields');
       return;
     }
 
-    setJobDescriptions(prev =>
-      prev.map(job =>
-        job.id === selectedJob.id
-          ? { ...job, department: formDepartment, role: formRole, description: formDescription }
-          : job
-      )
-    );
+    const payload = {
+      department: formDepartment,
+      role: formRole,
+      description: formDescription,
+    };
 
-    resetForm();
-    setShowEditDialog(false);
-    toast.success('Job description updated successfully!');
+    try {
+      const res = await fetch(`${API_BASE}/job-descriptions/${selectedJob.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(`Update failed (${res.status})`);
+      const updated: JobDescription = await res.json();
+      setJobDescriptions(prev => prev.map(j => j.id === updated.id ? updated : j));
+      resetForm();
+      setShowEditDialog(false);
+      toast.success('Job description updated successfully!');
+    } catch (err) {
+      console.error('Update job failed', err);
+      toast.error('Failed to update job description');
+    }
   };
 
-  const handleDeleteJob = () => {
+  const handleDeleteJob = async () => {
     if (!selectedJob) return;
-
-    setJobDescriptions(prev => prev.filter(job => job.id !== selectedJob.id));
-    setSelectedJob(null);
-    setShowDeleteDialog(false);
-    toast.success('Job description deleted successfully!');
+    try {
+      const res = await fetch(`${API_BASE}/job-descriptions/${selectedJob.id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error(`Delete failed (${res.status})`);
+      setJobDescriptions(prev => prev.filter(job => job.id !== selectedJob.id));
+      setSelectedJob(null);
+      setShowDeleteDialog(false);
+      toast.success('Job description deleted successfully!');
+    } catch (err) {
+      console.error('Delete job failed', err);
+      toast.error('Failed to delete job description');
+    }
   };
 
   const openAddDialog = () => {

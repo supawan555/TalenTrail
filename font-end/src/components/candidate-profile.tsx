@@ -22,7 +22,8 @@ import {
   XCircle
 } from 'lucide-react';
 import { Candidate } from '../lib/mock-data';
-import { useState } from 'react';
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+import { useEffect, useMemo, useState } from 'react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { AddCandidateModal } from './add-candidate-modal';
 import { 
@@ -53,20 +54,84 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
   const [showArchiveDialog, setShowArchiveDialog] = useState(false);
   const [archiveType, setArchiveType] = useState<'reject' | 'drop-off'>('reject');
   const [archiveReason, setArchiveReason] = useState('');
+  // Local copy of candidate that is refreshed from backend
+  const [liveCandidate, setLiveCandidate] = useState<Candidate>(candidate);
 
-  const handleEdit = (updatedCandidate: Candidate) => {
-    onEdit?.(updatedCandidate);
-    setShowEditModal(false);
+  // Normalize resume URL (support relative paths from backend like /uploads/...)
+  const resolvedResumeUrl = useMemo(() => {
+    const url = (liveCandidate as any)?.resumeUrl as string | undefined;
+    if (!url) return undefined;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    return `${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`;
+  }, [liveCandidate]);
+
+  // Fetch latest candidate details from backend when profile opens
+  useEffect(() => {
+    let isMounted = true;
+    const fetchCandidate = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/candidates/${candidate.id}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const fresh: Candidate = await res.json();
+        if (isMounted) setLiveCandidate(fresh);
+      } catch (e) {
+        // Keep using the provided candidate on failure
+        console.warn('Failed to refresh candidate from backend:', e);
+      }
+    };
+    fetchCandidate();
+    return () => { isMounted = false; };
+  }, [candidate.id]);
+
+  const handleEdit = async (updatedCandidate: Candidate) => {
+    try {
+      const res = await fetch(`${API_BASE}/candidates/${liveCandidate.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedCandidate),
+      });
+      if (!res.ok) throw new Error(`Update failed (${res.status})`);
+      const saved: Candidate = await res.json();
+      setLiveCandidate(saved);
+      onEdit?.(saved);
+    } catch (err) {
+      console.error('Update candidate failed', err);
+    } finally {
+      setShowEditModal(false);
+    }
   };
 
-  const handleDelete = () => {
-    onDelete?.(candidate.id);
-    setShowDeleteDialog(false);
+  const handleDelete = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/candidates/${liveCandidate.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(`Delete failed (${res.status})`);
+      onDelete?.(liveCandidate.id);
+    } catch (err) {
+      console.error('Delete candidate failed', err);
+    } finally {
+      setShowDeleteDialog(false);
+    }
   };
 
-  const handleNextStage = () => {
-    onNextStage?.(candidate.id);
-    setShowNextStageDialog(false);
+  const handleNextStage = async () => {
+    const stageOrder = ['applied', 'screening', 'interview', 'final', 'hired'] as const;
+    const currentIndex = stageOrder.indexOf(liveCandidate.stage as typeof stageOrder[number]);
+    const next = currentIndex >= 0 && currentIndex < stageOrder.length - 1 ? stageOrder[currentIndex + 1] : null;
+    if (!next) { setShowNextStageDialog(false); return; }
+    try {
+      const res = await fetch(`${API_BASE}/candidates/${liveCandidate.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage: next }),
+      });
+      if (!res.ok) throw new Error(`Stage update failed (${res.status})`);
+      setLiveCandidate(prev => ({ ...prev, stage: next } as Candidate));
+      onNextStage?.(liveCandidate.id);
+    } catch (err) {
+      console.error('Move to next stage failed', err);
+    } finally {
+      setShowNextStageDialog(false);
+    }
   };
 
   const handleArchiveSelect = (value: string) => {
@@ -77,24 +142,36 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
     }
   };
 
-  const handleArchive = () => {
+  const handleArchive = async () => {
     if (!archiveReason.trim()) {
       return;
     }
-
-    if (archiveType === 'reject') {
-      onReject?.(candidate.id, archiveReason);
-    } else {
-      onDropOff?.(candidate.id, archiveReason);
+    const newStage = archiveType === 'reject' ? 'rejected' : 'drop-off';
+    try {
+      const payload = { stage: newStage, archiveReason, archivedDate: new Date().toISOString().split('T')[0] };
+      const res = await fetch(`${API_BASE}/candidates/${liveCandidate.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(`Archive failed (${res.status})`);
+      setLiveCandidate(prev => ({ ...prev, stage: newStage } as Candidate));
+      if (archiveType === 'reject') {
+        onReject?.(liveCandidate.id, archiveReason);
+      } else {
+        onDropOff?.(liveCandidate.id, archiveReason);
+      }
+    } catch (err) {
+      console.error('Archive candidate failed', err);
+    } finally {
+      setShowArchiveDialog(false);
+      setArchiveReason('');
     }
-    
-    setShowArchiveDialog(false);
-    setArchiveReason('');
   };
 
   const getNextStage = (): string | null => {
     const stageOrder = ['applied', 'screening', 'interview', 'final', 'hired'];
-    const currentIndex = stageOrder.indexOf(candidate.stage);
+    const currentIndex = stageOrder.indexOf(liveCandidate.stage);
     if (currentIndex >= 0 && currentIndex < stageOrder.length - 1) {
       return stageOrder[currentIndex + 1];
     }
@@ -122,7 +199,7 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
             <Trash2 className="w-4 h-4 mr-2" />
             Delete
           </Button>
-          {candidate.stage !== 'rejected' && candidate.stage !== 'hired' && candidate.stage !== 'drop-off' && (
+          {liveCandidate.stage !== 'rejected' && liveCandidate.stage !== 'hired' && liveCandidate.stage !== 'drop-off' && (
             <Select onValueChange={handleArchiveSelect}>
               <SelectTrigger className="w-[140px] border-red-200 text-red-600 hover:bg-red-50">
                 <SelectValue placeholder="Archive" />
@@ -149,40 +226,40 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
           <Card>
             <CardHeader className="text-center">
               <Avatar className="w-24 h-24 mx-auto mb-4">
-                <AvatarImage src={candidate.avatar} alt={candidate.name} />
+                <AvatarImage src={liveCandidate.avatar} alt={liveCandidate.name} />
                 <AvatarFallback className="text-lg">
-                  {candidate.name.split(' ').map(n => n[0]).join('')}
+                  {liveCandidate.name.split(' ').map(n => n[0]).join('')}
                 </AvatarFallback>
               </Avatar>
-              <CardTitle>{candidate.name}</CardTitle>
-              <CardDescription>{candidate.position}</CardDescription>
+              <CardTitle>{liveCandidate.name}</CardTitle>
+              <CardDescription>{liveCandidate.position}</CardDescription>
               <div className="flex items-center justify-center mt-2">
                 <Badge 
-                  variant={candidate.stage === 'hired' ? 'default' : 'secondary'}
+                  variant={liveCandidate.stage === 'hired' ? 'default' : 'secondary'}
                   className={`capitalize ${
-                    candidate.stage === 'hired' ? 'bg-green-100 text-green-800' :
-                    candidate.stage === 'interview' ? 'bg-purple-100 text-purple-800' :
-                    candidate.stage === 'final' ? 'bg-orange-100 text-orange-800' :
-                    candidate.stage === 'screening' ? 'bg-yellow-100 text-yellow-800' :
+                    liveCandidate.stage === 'hired' ? 'bg-green-100 text-green-800' :
+                    liveCandidate.stage === 'interview' ? 'bg-purple-100 text-purple-800' :
+                    liveCandidate.stage === 'final' ? 'bg-orange-100 text-orange-800' :
+                    liveCandidate.stage === 'screening' ? 'bg-yellow-100 text-yellow-800' :
                     'bg-blue-100 text-blue-800'
                   }`}
                 >
-                  {candidate.stage}
+                  {liveCandidate.stage}
                 </Badge>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center text-sm">
                 <Mail className="w-4 h-4 mr-3 text-muted-foreground" />
-                {candidate.email}
+                {liveCandidate.email}
               </div>
               <div className="flex items-center text-sm">
                 <Phone className="w-4 h-4 mr-3 text-muted-foreground" />
-                {candidate.phone}
+                {liveCandidate.phone}
               </div>
               <div className="flex items-center text-sm">
                 <Calendar className="w-4 h-4 mr-3 text-muted-foreground" />
-                Applied {new Date(candidate.appliedDate).toLocaleDateString()}
+                Applied {new Date(liveCandidate.appliedDate).toLocaleDateString()}
               </div>
             </CardContent>
           </Card>
@@ -198,9 +275,9 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
             <CardContent>
               <div className="text-center">
                 <div className="text-3xl font-bold text-green-600 mb-2">
-                  {candidate.matchScore}%
+                  {liveCandidate.matchScore}%
                 </div>
-                <Progress value={candidate.matchScore} className="mb-4" />
+                <Progress value={liveCandidate.matchScore} className="mb-4" />
                 <p className="text-sm text-muted-foreground">
                   Excellent match for this position
                 </p>
@@ -217,54 +294,76 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center">
                   <FileText className="w-5 h-5 mr-2" />
-                  Resume Preview
+                  Resume
                 </CardTitle>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" asChild>
+                  <a href={resolvedResumeUrl} target="_blank" rel="noreferrer">
                   <Download className="w-4 h-4 mr-2" />
                   Download
+                  </a>
                 </Button>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="border border-border/40 rounded-lg p-6 bg-muted/20">
-                <div className="aspect-[8.5/11] bg-white rounded shadow-sm p-8">
-                  <div className="space-y-6">
-                    {/* Resume Header */}
-                    <div className="text-center border-b pb-4">
-                      <h2 className="text-2xl font-bold">{candidate.name}</h2>
-                      <p className="text-lg text-muted-foreground">{candidate.position}</p>
-                      <div className="flex justify-center items-center space-x-4 mt-2">
-                        <span className="text-sm">{candidate.email}</span>
-                        <span className="text-sm">{candidate.phone}</span>
-                      </div>
-                    </div>
-
-                    {/* Experience */}
-                    <div>
-                      <h3 className="font-semibold mb-3">Professional Experience</h3>
-                      <div className="space-y-4">
-                        <div>
-                          <h4 className="font-medium">Senior Frontend Developer</h4>
-                          <p className="text-sm text-muted-foreground">TechCorp Inc. • 2020 - Present</p>
-                          <ul className="text-sm mt-2 space-y-1 list-disc list-inside">
-                            <li>Led development of React-based web applications</li>
-                            <li>Collaborated with design team on UI/UX improvements</li>
-                            <li>Mentored junior developers and conducted code reviews</li>
-                          </ul>
-                        </div>
-                        <div>
-                          <h4 className="font-medium">Frontend Developer</h4>
-                          <p className="text-sm text-muted-foreground">StartupXYZ • 2018 - 2020</p>
-                          <ul className="text-sm mt-2 space-y-1 list-disc list-inside">
-                            <li>Built responsive web applications using modern frameworks</li>
-                            <li>Optimized application performance and accessibility</li>
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+              {resolvedResumeUrl ? (
+                <div className="border border-border/40 rounded-lg overflow-hidden">
+                  <iframe
+                    src={`${resolvedResumeUrl}#toolbar=1&navpanes=0&scrollbar=1`}
+                    title="Resume PDF"
+                    className="w-full"
+                    style={{ height: '75vh' }}
+                  />
                 </div>
-              </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No resume uploaded.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Resume Analysis (from ML) */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <FileText className="w-5 h-5 mr-2" />
+                Resume Analysis
+              </CardTitle>
+              <CardDescription>Extracted details from the uploaded resume</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {(() => {
+                const ra: any = (liveCandidate as any).resumeAnalysis;
+                const hasAny = ra && (Array.isArray(ra.skills) ? ra.skills.length > 0 : false) || ra?.experience_years || ra?.text_snippet;
+                if (!hasAny) {
+                  return (
+                    <p className="text-sm text-muted-foreground">No analysis available for this candidate.</p>
+                  );
+                }
+                return (
+                  <div className="space-y-4">
+                    {Array.isArray(ra?.skills) && ra.skills.length > 0 && (
+                      <div>
+                        <h4 className="font-medium mb-2">Detected Skills</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {ra.skills.map((s: string) => (
+                            <Badge key={s} variant="secondary">{s}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {ra?.experience_years && (
+                      <div className="text-sm">
+                        <span className="font-medium">Experience:</span> {ra.experience_years} years
+                      </div>
+                    )}
+                    {ra?.text_snippet && (
+                      <div className="text-sm">
+                        <h4 className="font-medium mb-1">Snippet</h4>
+                        <p className="text-muted-foreground whitespace-pre-wrap">{ra.text_snippet}</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
 
@@ -282,7 +381,7 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
             <CardContent>
               <ScrollArea className="h-96">
                 <div className="space-y-4 pr-4">
-                  {candidate.notes.map((note) => {
+                  {liveCandidate.notes.map((note) => {
                     const getTagColor = (type: string) => {
                       switch (type) {
                         case 'Awaiting Feedback': return 'bg-yellow-50 text-yellow-700 border-yellow-200';
@@ -314,7 +413,7 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
                       </div>
                     );
                   })}
-                  {candidate.notes.length === 0 && (
+                  {liveCandidate.notes.length === 0 && (
                     <p className="text-sm text-muted-foreground text-center py-8">
                       No notes available for this candidate.
                     </p>
@@ -331,7 +430,7 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
         open={showEditModal}
         onClose={() => setShowEditModal(false)}
         onAdd={handleEdit}
-        candidate={candidate}
+        candidate={liveCandidate}
       />
 
       {/* Delete Confirmation Dialog */}
@@ -340,7 +439,7 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Candidate</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete {candidate.name}? This action cannot be undone.
+              Are you sure you want to delete {liveCandidate.name}? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -358,7 +457,7 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
           <AlertDialogHeader>
             <AlertDialogTitle>Move to Next Stage</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to move {candidate.name} from {formatStageName(candidate.stage)} to {nextStage ? formatStageName(nextStage) : ''}?
+              Are you sure you want to move {liveCandidate.name} from {formatStageName(liveCandidate.stage)} to {nextStage ? formatStageName(nextStage) : ''}?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -379,8 +478,8 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
             </AlertDialogTitle>
             <AlertDialogDescription>
               {archiveType === 'reject' 
-                ? `Are you sure you want to reject ${candidate.name}? This will move them to Archived Candidates.`
-                : `Are you sure you want to mark ${candidate.name} as drop-off? This will move them to Archived Candidates.`
+                ? `Are you sure you want to reject ${liveCandidate.name}? This will move them to Archived Candidates.`
+                : `Are you sure you want to mark ${liveCandidate.name} as drop-off? This will move them to Archived Candidates.`
               }
             </AlertDialogDescription>
           </AlertDialogHeader>
