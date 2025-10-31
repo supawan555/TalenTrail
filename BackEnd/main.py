@@ -11,12 +11,17 @@ from fastapi.staticfiles import StaticFiles
 import shutil
 import uuid
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
+import pyotp
+import hashlib
+import hmac
+import base64
+import os as _os
+
 
 app = FastAPI()
 
 # Allow front-end dev server to call the API
-# Assumption: front-end runs on http://localhost:5173 (Vite default). Add more origins if needed.
 # Broaden CORS to cover localhost and 127.0.0.1 dev servers on common ports
 app.add_middleware(
     CORSMiddleware,
@@ -42,6 +47,8 @@ db = client["TalentTail"]
 candidate_collection = db["candidates"]
 job_collection = db["job_descriptions"]
 resume_analyses_collection = db["resume_analyses"]
+auth_users_collection = db["auth_users"]
+auth_sessions_collection = db["auth_sessions"]
 
 # Additional DB for matching API
 hr_db = client["hr_platform"]
@@ -216,6 +223,144 @@ class MatchResponse(BaseModel):
 @app.get("/")
 async def root():
     return {"message": "Hello, World!"}
+
+
+# ================== Auth Models ==================
+class RegisterRequest(BaseModel):
+    name: str
+    email: str
+    password: str
+    role: Optional[str] = None
+
+
+class RegisterResponse(BaseModel):
+    message: str
+    otpauth_url: str
+    secret: str
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class LoginResponse(BaseModel):
+    otp_required: bool = True
+    pendingToken: str
+
+
+class VerifyOtpRequest(BaseModel):
+    pendingToken: str
+    code: str
+
+
+class TokenResponse(BaseModel):
+    accessToken: str
+    tokenType: str = "bearer"
+
+
+_PBKDF_ITER = 200_000
+
+
+def _hash_password(pw: str) -> dict:
+    salt = _os.urandom(16)
+    dk = hashlib.pbkdf2_hmac('sha256', pw.encode('utf-8'), salt, _PBKDF_ITER)
+    return {
+        "alg": "pbkdf2_sha256",
+        "iter": _PBKDF_ITER,
+        "salt": base64.b64encode(salt).decode('ascii'),
+        "hash": base64.b64encode(dk).decode('ascii'),
+    }
+
+
+def _verify_password(pw: str, stored: dict) -> bool:
+    try:
+        if not stored or stored.get("alg") != "pbkdf2_sha256":
+            return False
+        iter_ = int(stored.get("iter", _PBKDF_ITER))
+        salt = base64.b64decode(stored.get("salt", ""))
+        expected = base64.b64decode(stored.get("hash", ""))
+        dk = hashlib.pbkdf2_hmac('sha256', pw.encode('utf-8'), salt, iter_)
+        # Use constant-time comparison to avoid timing attacks
+        return hmac.compare_digest(dk, expected)
+    except Exception:
+        return False
+
+
+@app.post("/auth/register", response_model=RegisterResponse)
+async def auth_register(req: RegisterRequest):
+    email = req.email.strip().lower()
+    if not email or not req.password:
+        raise HTTPException(status_code=400, detail="Email and password are required")
+
+    if auth_users_collection.find_one({"email": email}):
+        raise HTTPException(status_code=409, detail="Email already registered")
+
+    # Use static secret in dev if provided, else generate per-user
+    secret = os.getenv("TALENTTAIL_TOTP_STATIC_SECRET") or pyotp.random_base32()
+    hashed = _hash_password(req.password)
+    doc = {
+        "name": req.name,
+        "email": email,
+        "password_hash": hashed,
+        "role": req.role,
+        "totp_secret": secret,
+        "twofa_enabled": True,
+        "created_at": datetime.utcnow().isoformat(),
+    }
+    auth_users_collection.insert_one(doc)
+
+    issuer = os.getenv("TALENTTAIL_TOTP_ISSUER", "TalentTail")
+    otpauth_url = pyotp.TOTP(secret).provisioning_uri(name=email, issuer_name=issuer)
+    return RegisterResponse(message="Registered successfully", otpauth_url=otpauth_url, secret=secret)
+
+
+@app.post("/auth/login", response_model=LoginResponse)
+async def auth_login(req: LoginRequest):
+    email = req.email.strip().lower()
+    user = auth_users_collection.find_one({"email": email})
+    if not user or not _verify_password(req.password, user.get("password_hash")):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    # Create short-lived pending session for OTP verify
+    token = uuid.uuid4().hex
+    auth_sessions_collection.insert_one({
+        "token": token,
+        "user_id": user["_id"],
+        "stage": "pending",
+        "expires_at": (datetime.utcnow() + timedelta(minutes=5)).isoformat()
+    })
+    return LoginResponse(otp_required=True, pendingToken=token)
+
+
+@app.post("/auth/verify-otp", response_model=TokenResponse)
+async def auth_verify_otp(req: VerifyOtpRequest):
+    session = auth_sessions_collection.find_one({"token": req.pendingToken, "stage": "pending"})
+    if not session:
+        raise HTTPException(status_code=401, detail="Invalid pending token")
+
+    # Check expiry
+    try:
+        if datetime.fromisoformat(session.get("expires_at")) < datetime.utcnow():
+            raise HTTPException(status_code=401, detail="Pending token expired")
+    except Exception:
+        pass
+
+    user = auth_users_collection.find_one({"_id": session["user_id"]})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    secret = user.get("totp_secret")
+    if not secret:
+        raise HTTPException(status_code=400, detail="TOTP not configured")
+
+    if not pyotp.TOTP(secret).verify(req.code, valid_window=1):
+        raise HTTPException(status_code=401, detail="Invalid OTP code")
+
+    # Mark session as authenticated and issue a simple access token
+    access = uuid.uuid4().hex
+    auth_sessions_collection.update_one({"_id": session["_id"]}, {"$set": {"stage": "done", "access": access}})
+    return TokenResponse(accessToken=access)
 
 
 @app.post("/candidates/")

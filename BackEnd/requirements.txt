@@ -4,3 +4,4 @@ pymongo
 python-multipart
 PyPDF2
 scikit-learn
+pyotp

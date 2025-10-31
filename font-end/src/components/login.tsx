@@ -4,6 +4,9 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Button } from './ui/button';
 import { Lock, Mail, Eye, EyeOff, Shield } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
+
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
 interface LoginProps {
   onLogin: () => void;
@@ -15,19 +18,62 @@ export function Login({ onLogin, onShowRegister }: LoginProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showOtpDialog, setShowOtpDialog] = useState(false);
+  const [pendingToken, setPendingToken] = useState<string | null>(null);
+  const [otpCode, setOtpCode] = useState('');
+  const [error, setError] = useState('');
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
-    // Simulate authentication
-    setTimeout(() => {
+    setError('');
+    try {
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      if (!res.ok) throw new Error(`Login failed (${res.status})`);
+      const data = await res.json();
+      if (data?.pendingToken) {
+        setPendingToken(data.pendingToken);
+        setShowOtpDialog(true);
+      } else {
+        onLogin();
+      }
+    } catch (err) {
+      setError('Invalid email or password');
+    } finally {
       setIsLoading(false);
-      onLogin();
-    }, 1000);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!pendingToken) return;
+    setError('');
+    try {
+      const res = await fetch(`${API_BASE}/auth/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pendingToken, code: otpCode }),
+      });
+      if (!res.ok) throw new Error('OTP verification failed');
+      const data = await res.json();
+      if (data?.accessToken) {
+        localStorage.setItem('accessToken', data.accessToken);
+        setShowOtpDialog(false);
+        setOtpCode('');
+        onLogin();
+      } else {
+        setError('Unexpected server response');
+      }
+    } catch (err) {
+      setError('Invalid or expired OTP');
+    }
   };
 
   return (
+    <>
     <div className="min-h-screen w-full relative overflow-hidden flex items-center justify-center p-4">
       {/* Animated Gradient Background */}
       <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
@@ -146,6 +192,9 @@ export function Login({ onLogin, onShowRegister }: LoginProps) {
                 )}
               </Button>
             </form>
+            {error && (
+              <p className="text-sm text-red-600 text-center">{error}</p>
+            )}
 
             {/* Divider */}
             <div className="relative">
@@ -208,6 +257,26 @@ export function Login({ onLogin, onShowRegister }: LoginProps) {
           animation-delay: 6s;
         }
       `}</style>
-    </div>
+  </div>
+
+    {/* OTP Dialog */}
+  <Dialog open={showOtpDialog} onOpenChange={setShowOtpDialog}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Two-Factor Authentication</DialogTitle>
+          <DialogDescription>Enter the 6-digit code from your authenticator app.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2 py-2">
+          <Label htmlFor="otp">OTP Code</Label>
+          <Input id="otp" inputMode="numeric" maxLength={6} value={otpCode} onChange={(e) => setOtpCode(e.target.value)} placeholder="123456" />
+        </div>
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowOtpDialog(false)}>Cancel</Button>
+          <Button onClick={handleVerifyOtp}>Verify</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

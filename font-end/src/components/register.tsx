@@ -5,6 +5,9 @@ import { Label } from './ui/label';
 import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Lock, Mail, Eye, EyeOff, Shield, User, Briefcase } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
+
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
 interface RegisterProps {
   onRegister: () => void;
@@ -20,7 +23,11 @@ export function Register({ onRegister, onBackToLogin }: RegisterProps) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [serverError, setServerError] = useState('');
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otpAuthUrl, setOtpAuthUrl] = useState<string>('');
+  const [otpSecret, setOtpSecret] = useState<string>('');
 
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {};
@@ -63,12 +70,38 @@ export function Register({ onRegister, onBackToLogin }: RegisterProps) {
     }
 
     setIsLoading(true);
-    
-    // Simulate registration
-    setTimeout(() => {
+    setServerError('');
+    try {
+      const res = await fetch(`${API_BASE}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: fullName, email, password, role }),
+      });
+      if (!res.ok) throw new Error(`Register failed (${res.status})`);
+      const data = await res.json();
+      // Show OTP provisioning info in a popup (otpauth URL and secret)
+      setOtpAuthUrl(data?.otpauth_url || '');
+      setOtpSecret(data?.secret || '');
+      setShowOtpModal(true);
+    } catch (err) {
+      setServerError('Registration failed. Email may already be registered.');
+    } finally {
       setIsLoading(false);
-      onRegister();
-    }, 1500);
+    }
+  };
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // fallback: create temp textarea
+      const el = document.createElement('textarea');
+      el.value = text;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+    }
   };
 
   return (
@@ -248,7 +281,7 @@ export function Register({ onRegister, onBackToLogin }: RegisterProps) {
                 </Label>
                 <div className="relative">
                   <Briefcase className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 z-10 pointer-events-none" />
-                  <Select value={role} onValueChange={(value) => {
+                  <Select value={role} onValueChange={(value: string) => {
                     setRole(value);
                     setErrors({ ...errors, role: '' });
                   }}>
@@ -287,6 +320,9 @@ export function Register({ onRegister, onBackToLogin }: RegisterProps) {
                 )}
               </Button>
             </form>
+            {serverError && (
+              <p className="text-sm text-red-600 text-center">{serverError}</p>
+            )}
 
             {/* Divider */}
             <div className="relative">
@@ -349,6 +385,59 @@ export function Register({ onRegister, onBackToLogin }: RegisterProps) {
           animation-delay: 6s;
         }
       `}</style>
+      {/* OTP Provisioning Modal */}
+      <Dialog open={showOtpModal} onOpenChange={setShowOtpModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Set up your Authenticator</DialogTitle>
+            <DialogDescription>
+              Scan a QR or use the link/secret below to add your account in Google Authenticator, Microsoft Authenticator, or any TOTP app.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {otpAuthUrl ? (
+              <div className="space-y-2">
+                <div className="text-sm text-gray-700">OTP setup link (otpauth URL):</div>
+                <div className="flex items-center gap-2">
+                  <a href={otpAuthUrl} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline break-all">
+                    {otpAuthUrl}
+                  </a>
+                  <Button type="button" variant="secondary" onClick={() => copyToClipboard(otpAuthUrl)}>Copy link</Button>
+                </div>
+                <div className="text-xs text-gray-500">On mobile, tapping this link should open your authenticator app.</div>
+              </div>
+            ) : null}
+
+            {otpAuthUrl ? (
+              <div className="space-y-2">
+                <div className="text-sm text-gray-700">Or scan a QR code:</div>
+                <div className="rounded-md border p-3 bg-white">
+                  {/* Use a simple external QR generator to avoid extra dependencies */}
+                  <img
+                    alt="OTP QR"
+                    className="mx-auto"
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(otpAuthUrl)}`}
+                  />
+                </div>
+                <div className="text-xs text-gray-500">If the image doesn’t load, open the link above directly on your phone.</div>
+              </div>
+            ) : null}
+
+            {otpSecret ? (
+              <div className="space-y-2">
+                <div className="text-sm text-gray-700">Secret (Base32):</div>
+                <div className="flex items-center gap-2">
+                  <code className="px-2 py-1 bg-gray-100 rounded text-sm break-all">{otpSecret}</code>
+                  <Button type="button" variant="secondary" onClick={() => copyToClipboard(otpSecret)}>Copy secret</Button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button type="button" onClick={() => { setShowOtpModal(false); onRegister(); }}>Go to Sign In</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
