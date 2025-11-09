@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -46,7 +47,7 @@ export function Pipeline({ onCandidateSelect, candidates: propCandidates }: Pipe
   }, [filteredCandidates]);
 
   const CandidateCard = ({ candidate }: { candidate: Candidate }) => (
-    <Card className="mb-3 cursor-pointer hover:shadow-md transition-shadow" onClick={() => onCandidateSelect(candidate)}>
+    <Card className="mb-3 cursor-pointer hover:shadow-md transition-shadow">
       <CardContent className="p-4">
         <div className="flex items-center space-x-3 mb-3">
           <Avatar className="w-10 h-10">
@@ -54,7 +55,9 @@ export function Pipeline({ onCandidateSelect, candidates: propCandidates }: Pipe
             <AvatarFallback>{candidate.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
           </Avatar>
           <div>
-            <h4 className="font-medium text-sm">{candidate.name}</h4>
+            <Link to={`/candidate/${candidate.id}`} onClick={() => onCandidateSelect(candidate)} className="font-medium text-sm hover:underline">
+              {candidate.name}
+            </Link>
             <p className="text-xs text-muted-foreground">{candidate.position}</p>
           </div>
         </div>

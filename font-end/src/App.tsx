@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Routes, Route, useNavigate, useParams, Navigate } from 'react-router-dom';
 import { Layout } from './components/layout';
 import { Dashboard } from './components/dashboard';
 import { Pipeline } from './components/pipeline';
@@ -12,7 +13,7 @@ import { Settings } from './components/settings';
 import { Login } from './components/login';
 import { Register } from './components/register';
 import { Candidate, mockCandidates } from './lib/mock-data';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 // Add archived candidates
 const archivedCandidates: Candidate[] = [
@@ -160,21 +161,20 @@ const archivedCandidates: Candidate[] = [
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [showRegister, setShowRegister] = useState(false);
-  const [currentPage, setCurrentPage] = useState('dashboard');
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [candidates, setCandidates] = useState<Candidate[]>([...mockCandidates, ...archivedCandidates]);
+  const navigate = useNavigate();
 
   const handleCandidateSelect = (candidate: Candidate) => {
     // Find the latest version of the candidate from state
     const latestCandidate = candidates.find(c => c.id === candidate.id) || candidate;
     setSelectedCandidate(latestCandidate);
-    setCurrentPage('candidate-profile');
+    navigate(`/candidate/${latestCandidate.id}`);
   };
 
   const handleBackToPipeline = () => {
     setSelectedCandidate(null);
-    setCurrentPage('pipeline');
+    navigate('/pipeline');
   };
 
   const handleAddCandidate = (newCandidate: Candidate) => {
@@ -193,7 +193,7 @@ export default function App() {
   const handleDeleteCandidate = (candidateId: string) => {
     setCandidates(prev => prev.filter(c => c.id !== candidateId));
     setSelectedCandidate(null);
-    setCurrentPage('pipeline');
+    navigate('/pipeline');
     toast.success('Candidate deleted successfully!');
   };
 
@@ -271,68 +271,96 @@ export default function App() {
     );
   };
 
-  const renderContent = () => {
-    if (currentPage === 'candidate-profile' && selectedCandidate) {
-      return (
-        <CandidateProfile 
-          candidate={selectedCandidate} 
-          onBack={handleBackToPipeline}
-          onEdit={handleEditCandidate}
-          onDelete={handleDeleteCandidate}
-          onNextStage={handleNextStage}
-          onReject={handleRejectCandidate}
-          onDropOff={handleDropOffCandidate}
-        />
-      );
-    }
-
-    switch (currentPage) {
-      case 'dashboard':
-        return <Dashboard />;
-      case 'pipeline':
-        return <Pipeline onCandidateSelect={handleCandidateSelect} candidates={candidates} />;
-      case 'candidates':
-        return <Candidates onCandidateSelect={handleCandidateSelect} candidates={candidates} onAddCandidate={handleAddCandidate} />;
-      case 'archived-candidates':
-        return <ArchivedCandidates candidates={candidates} onRestore={handleRestoreCandidate} />;
-      case 'job-descriptions':
-        return <JobDescriptions />;
-      case 'analytics':
-        return <Analytics />;
-      case 'notes':
-        return <Notes />;
-      case 'settings':
-        return <Settings onLogout={() => setIsAuthenticated(false)} />;
-      default:
-        return <Dashboard />;
-    }
-  };
-
-  // Show login or register page if not authenticated
-  if (!isAuthenticated) {
-    if (showRegister) {
-      return (
-        <Register 
-          onRegister={() => {
-            setIsAuthenticated(true);
-            setShowRegister(false);
-            toast.success('Account created successfully!');
-          }} 
-          onBackToLogin={() => setShowRegister(false)}
-        />
-      );
+  const CandidateProfileWrapper = () => {
+    const { id } = useParams();
+    let seed = candidates.find(c => c.id === id) || selectedCandidate;
+    if (!id) return <Navigate to="/pipeline" replace />;
+    // If seed not found in local state, create a minimal placeholder so component can fetch from backend
+    if (!seed) {
+      seed = {
+        id,
+        name: 'Loading…',
+        email: '',
+        phone: '',
+        avatar: '',
+        position: '',
+        department: '',
+        experience: '',
+        location: '',
+        matchScore: 0,
+        stage: 'applied',
+        appliedDate: new Date().toISOString().split('T')[0],
+        skills: [],
+        notes: [],
+        salary: '',
+        availability: ''
+      };
     }
     return (
-      <Login 
-        onLogin={() => setIsAuthenticated(true)} 
-        onShowRegister={() => setShowRegister(true)}
+      <CandidateProfile
+        candidate={seed}
+        onBack={handleBackToPipeline}
+        onEdit={handleEditCandidate}
+        onDelete={handleDeleteCandidate}
+        onNextStage={handleNextStage}
+        onReject={handleRejectCandidate}
+        onDropOff={handleDropOffCandidate}
       />
+    );
+  };
+
+  const renderRoutes = () => (
+    <Routes>
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/dashboard" element={<Dashboard />} />
+      <Route path="/pipeline" element={<Pipeline onCandidateSelect={handleCandidateSelect} candidates={candidates} />} />
+      <Route path="/candidates" element={<Candidates onCandidateSelect={handleCandidateSelect} />} />
+      <Route path="/archived-candidates" element={<ArchivedCandidates candidates={candidates} onRestore={handleRestoreCandidate} />} />
+      <Route path="/job-descriptions" element={<JobDescriptions />} />
+      <Route path="/analytics" element={<Analytics />} />
+      <Route path="/notes" element={<Notes />} />
+      <Route path="/settings" element={<Settings onLogout={() => setIsAuthenticated(false)} />} />
+      <Route path="/candidate/:id" element={<CandidateProfileWrapper />} />
+      <Route path="*" element={<Dashboard />} />
+    </Routes>
+  );
+
+  // Unauthenticated routes: login & register
+  if (!isAuthenticated) {
+    return (
+      <Routes>
+        <Route
+          path="/login"
+          element={
+            <Login
+              onLogin={() => {
+                setIsAuthenticated(true);
+                navigate('/');
+              }}
+              onShowRegister={() => navigate('/register')}
+            />
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            <Register
+              onRegister={() => {
+                toast.success('Account created successfully! Please sign in.');
+                navigate('/login');
+              }}
+              onBackToLogin={() => navigate('/login')}
+            />
+          }
+        />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
     );
   }
 
   return (
-    <Layout currentPage={currentPage} onNavigate={setCurrentPage}>
-      {renderContent()}
+    <Layout>
+      {renderRoutes()}
     </Layout>
   );
 }
