@@ -1,6 +1,6 @@
 # 🌟 TalentTrail
 
-A full‑stack recruiting app built with React (Vite) and FastAPI, backed by MongoDB. Manage job descriptions and candidates, upload resumes, run basic analysis, and enable 2FA (TOTP) during sign‑in.
+A full‑stack recruiting app built with React (Vite) and FastAPI, backed by MongoDB. Manage job descriptions and candidates, upload resumes, run basic analysis, and enable 2FA (TOTP) during sign‑in. kub
 
 ---
 
@@ -62,8 +62,8 @@ pip install -r requirements.txt
 # 3) (Optional) Dev-time TOTP secret so OTPs are predictable across users
 export TALENTTAIL_TOTP_STATIC_SECRET="JBSWY3DPEHPK3PXP"
 
-# 4) Run the API
-uvicorn main:app --reload --port 8000
+# 4) Run the API (new modular entry)
+uvicorn app.main:app --reload --port 8000
 # → Open http://localhost:8000/docs
 ```
 
@@ -71,7 +71,7 @@ Windows PowerShell (activate venv + optional env var)
 ```powershell
 .\env\Scripts\Activate.ps1
 $env:TALENTTAIL_TOTP_STATIC_SECRET = "JBSWY3DPEHPK3PXP"
-uvicorn main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8000
 ```
 
 What’s inside
@@ -89,7 +89,7 @@ Use two terminals:
 - Terminal A (backend)
 ```bash
 cd BackEnd
-uvicorn main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8000
 ```
 
 - Terminal B (frontend)
@@ -109,8 +109,13 @@ Then open:
 ```text
 TalentTrail/
 ├─ BackEnd/
-│  ├─ main.py                  # FastAPI app (auth, jobs, candidates, uploads)
-│  ├─ auth.py                  # (optional) TOTP helpers
+│  ├─ app/
+│  │  ├─ main.py               # FastAPI app (includes routers)
+│  │  ├─ config.py, db.py      # Settings and Mongo client/collections
+│  │  ├─ routers/              # auth, candidates, jobs, matching, uploads
+│  │  ├─ services/             # auth, job_preload, resume_analysis
+│  │  └─ utils/                # file_storage
+│  ├─ auth.py                  # (legacy) TOTP helpers
 │  ├─ setup_totp.py            # (optional) TOTP dev helper
 │  ├─ mock_job_descriptions.json
 │  ├─ requirements.txt

@@ -12,6 +12,8 @@ export interface Candidate {
   stage: 'applied' | 'screening' | 'interview' | 'final' | 'hired' | 'rejected' | 'drop-off';
   appliedDate: string;
   resumeUrl?: string;
+  archivedDate?: string;
+  archiveReason?: string;
   skills: string[];
   notes: Note[];
   salary: string;

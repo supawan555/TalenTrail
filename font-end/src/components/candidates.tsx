@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -160,7 +161,7 @@ export function Candidates({ onCandidateSelect }: CandidatesProps) {
       {/* Candidates Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {sortedCandidates.map((candidate) => (
-          <Card key={candidate.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => onCandidateSelect(candidate)}>
+          <Card key={candidate.id} className="hover:shadow-md transition-shadow cursor-pointer">
             <CardHeader className="pb-3">
               <div className="flex items-center space-x-3">
                 <Avatar className="w-12 h-12">
@@ -168,7 +169,9 @@ export function Candidates({ onCandidateSelect }: CandidatesProps) {
                   <AvatarFallback>{candidate.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
                 </Avatar>
                 <div>
-                  <CardTitle className="text-lg">{candidate.name}</CardTitle>
+                  <Link to={`/candidate/${candidate.id}`} onClick={() => onCandidateSelect(candidate)} className="no-underline">
+                    <CardTitle className="text-lg hover:underline">{candidate.name}</CardTitle>
+                  </Link>
                   <CardDescription>{candidate.position}</CardDescription>
                 </div>
               </div>
