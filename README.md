@@ -1,6 +1,6 @@
 # 🌟 TalentTrail
 
-A full‑stack recruiting app built with React (Vite) and FastAPI, backed by MongoDB. Manage job descriptions and candidates, upload resumes, run basic analysis, and enable 2FA (TOTP) during sign‑in.
+A full‑stack recruiting app built with React (Vite) and FastAPI, backed by MongoDB. Manage job descriptions and candidates, upload resumes, run basic analysis, and enable 2FA (TOTP) during sign‑in. kub
 
 ---
 
