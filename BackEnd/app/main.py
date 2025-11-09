@@ -44,6 +44,7 @@ app.include_router(jobs_router.router)
 app.include_router(jobs_router.legacy_router)
 app.include_router(matching_router.router)
 app.include_router(uploads_router.router)
+app.include_router(uploads_router.legacy_router)
 
 # Startup preload
 register_startup(app)
