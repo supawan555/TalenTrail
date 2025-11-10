@@ -24,6 +24,7 @@ import {
 import { Candidate } from '../lib/mock-data';
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { AddCandidateModal } from './add-candidate-modal';
 import { 
@@ -56,6 +57,7 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
   const [archiveReason, setArchiveReason] = useState('');
   // Local copy of candidate that is refreshed from backend
   const [liveCandidate, setLiveCandidate] = useState<Candidate>(candidate);
+  const navigate = useNavigate();
 
   // Normalize resume URL (support relative paths from backend like /uploads/...)
   const resolvedResumeUrl = useMemo(() => {
@@ -65,8 +67,34 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
     return `${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`;
   }, [liveCandidate]);
 
+  // Normalize avatar URL and provide fallback placeholder
+  const resolvedAvatarUrl = useMemo(() => {
+    const url = (liveCandidate as any)?.avatar as string | undefined;
+    if (!url || url.trim() === '') {
+      return `${API_BASE}/upload-file/default_avatar.svg`;
+    }
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    // For backend-provided /uploads/... rewrite to /upload-file/... for prefix fallback & placeholder support
+    if (url.startsWith('/uploads/')) {
+      return `${API_BASE}${url.replace('/uploads/', '/upload-file/')}`;
+    }
+    // If somehow a /upload-file/ path already
+    if (url.startsWith('/upload-file/')) {
+      return `${API_BASE}${url}`;
+    }
+    return `${API_BASE}/${url}`;
+  }, [liveCandidate]);
+
   // Fetch latest candidate details from backend when profile opens
   useEffect(() => {
+    // Always start at the top when opening profile
+    try {
+      window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+    } catch {
+      // Fallback for older browsers
+      window.scrollTo(0, 0);
+    }
+
     let isMounted = true;
     const fetchCandidate = async () => {
       try {
@@ -106,6 +134,8 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
       const res = await fetch(`${API_BASE}/candidates/${liveCandidate.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(`Delete failed (${res.status})`);
       onDelete?.(liveCandidate.id);
+      // Ensure navigation even if parent doesn't handle it
+      navigate('/candidates', { replace: true });
     } catch (err) {
       console.error('Delete candidate failed', err);
     } finally {
@@ -226,7 +256,7 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
           <Card>
             <CardHeader className="text-center">
               <Avatar className="w-24 h-24 mx-auto mb-4">
-                <AvatarImage src={liveCandidate.avatar} alt={liveCandidate.name} />
+                <AvatarImage src={resolvedAvatarUrl} alt={liveCandidate.name} />
                 <AvatarFallback className="text-lg">
                   {liveCandidate.name.split(' ').map(n => n[0]).join('')}
                 </AvatarFallback>

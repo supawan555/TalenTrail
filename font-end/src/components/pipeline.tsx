@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Mail, Phone, Calendar, Search } from 'lucide-react';
 import { pipelineStages, Candidate } from '../lib/mock-data';
 
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+
 interface PipelineProps {
   onCandidateSelect: (candidate: Candidate) => void;
   candidates?: Candidate[];
@@ -17,9 +19,51 @@ interface PipelineProps {
 export function Pipeline({ onCandidateSelect, candidates: propCandidates }: PipelineProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
+  const [allCandidates, setAllCandidates] = useState<Candidate[]>(propCandidates || []);
 
-  // Use provided candidates or empty array
-  const allCandidates = propCandidates || [];
+  // Load candidates from backend when not provided via props
+  useEffect(() => {
+    if (propCandidates && propCandidates.length > 0) {
+      setAllCandidates(propCandidates);
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/candidates/`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (cancelled) return;
+        // Normalize backend payload to Candidate type
+        const normalized: Candidate[] = (data || []).map((c: any) => ({
+          id: c.id ?? c._id ?? String(Date.now()),
+          name: c.name ?? 'Unknown',
+          email: c.email ?? 'candidate@example.com',
+          phone: c.phone ?? '+1 234 567 8900',
+          avatar: c.avatar ?? '',
+          position: c.position ?? (c.role ?? 'Unknown'),
+          department: c.department ?? 'Engineering',
+          experience: c.experience ?? 'mid',
+          location: c.location ?? 'Remote',
+          matchScore: typeof c.matchScore === 'number' ? c.matchScore : 0,
+          stage: c.stage ?? 'applied',
+          appliedDate: c.appliedDate ?? c.created_at ?? new Date().toISOString(),
+          skills: Array.isArray(c.skills) ? c.skills : [],
+          salary: c.salary ?? '',
+          availability: c.availability ?? '',
+          resumeUrl: c.resume_url ?? c.resumeUrl ?? '',
+          resumeAnalysis: c.resumeAnalysis ?? null,
+          notes: Array.isArray(c.notes) ? c.notes : []
+        }));
+        setAllCandidates(normalized);
+      } catch (err) {
+        console.error('Failed to load candidates', err);
+        setAllCandidates([]);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [propCandidates]);
   
   // Filter out archived candidates (rejected and drop-off)
   const activeCandidates = allCandidates.filter(c => c.stage !== 'rejected' && c.stage !== 'drop-off');
@@ -51,7 +95,12 @@ export function Pipeline({ onCandidateSelect, candidates: propCandidates }: Pipe
       <CardContent className="p-4">
         <div className="flex items-center space-x-3 mb-3">
           <Avatar className="w-10 h-10">
-            <AvatarImage src={candidate.avatar} alt={candidate.name} />
+            <AvatarImage
+              src={candidate.avatar
+                ? `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}${candidate.avatar.replace('/uploads/','/upload-file/')}`
+                : `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/upload-file/default_avatar.svg`}
+              alt={candidate.name}
+            />
             <AvatarFallback>{candidate.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
           </Avatar>
           <div>

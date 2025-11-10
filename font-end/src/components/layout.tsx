@@ -64,7 +64,7 @@ export function Layout({ children }: LayoutProps) {
               <h2 className="capitalize text-lg font-medium">{active}</h2>
             </div>
           </header>
-          <main className="flex-1 overflow-auto">{children}</main>
+          <main className="flex-1 overflow-auto" data-scroll-container id="app-scroll-root">{children}</main>
         </div>
       </div>
     </SidebarProvider>

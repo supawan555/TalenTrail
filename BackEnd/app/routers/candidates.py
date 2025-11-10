@@ -35,6 +35,28 @@ if not logger.handlers:
 logger.setLevel(logging.INFO)
 
 
+def _is_placeholder_phone(value: Optional[str]) -> bool:
+    """Heuristic check to decide if a phone looks like a placeholder.
+
+    Rules:
+    - empty or None
+    - common mock strings like 'N/A', 'none'
+    - specific samples: '+1 234 567 890', '+1 234 567 8900'
+    - after stripping non-digits, length < 9 or obvious sequences like 1234567890/0123456789
+    """
+    if not value:
+        return True
+    s = value.strip().lower()
+    if s in {"n/a", "na", "none", "unknown"}:
+        return True
+    if s in {"+1 234 567 890", "+1 234 567 8900"}:
+        return True
+    digits = re.sub(r"\D", "", s)
+    if digits in {"", "1234567890", "0123456789"}:
+        return True
+    return len(digits) < 9
+
+
 @router.get("")
 async def list_candidates():
     items = []
@@ -110,7 +132,8 @@ async def create_candidate(
                 # Enrich top-level fields even if job match fails
                 if (not payload.get("email") or payload.get("email") == "candidate@example.com") and extracted_struct.get("email"):
                     payload["email"] = extracted_struct.get("email")
-                if (not payload.get("phone") or payload.get("phone") == "+1 234 567 890") and extracted_struct.get("phone"):
+                # Replace phone if it's missing or a known placeholder
+                if _is_placeholder_phone(payload.get("phone")) and extracted_struct.get("phone"):
                     payload["phone"] = extracted_struct.get("phone")
                 if not payload.get("name") and extracted_struct.get("name"):
                     payload["name"] = extracted_struct.get("name")
@@ -179,7 +202,8 @@ async def create_candidate(
     doc = {
         "name": name,
         "email": email,
-        "phone": phone,
+        # Apply placeholder detection before persisting phone (will be enriched later if resume provided)
+        "phone": None if _is_placeholder_phone(phone) else phone,
         "notes": notes,
         "position": position,
         "experience": experience,
@@ -200,9 +224,13 @@ async def create_candidate(
             print("🧠 [ML] Extracted fields (multipart path):", json.dumps(extracted, indent=2, ensure_ascii=False))
 
             # Enrich candidate fields if missing (do not override provided ones)
-            for field in ["name", "email", "phone"]:
-                if not doc.get(field) and extracted.get(field):
-                    doc[field] = extracted.get(field)
+            # Enrich name/email if missing. For phone, also replace placeholders.
+            if not doc.get("name") and extracted.get("name"):
+                doc["name"] = extracted.get("name")
+            if not doc.get("email") and extracted.get("email"):
+                doc["email"] = extracted.get("email")
+            if _is_placeholder_phone(doc.get("phone")) and extracted.get("phone"):
+                doc["phone"] = extracted.get("phone")
 
             job_doc = job_collection.find_one({"role": position})
             if not job_doc:

@@ -34,9 +34,9 @@ async def upload_resume(file: UploadFile = File(...)):
 async def upload_profile_picture(file: UploadFile = File(...)):
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Profile picture must be an image file")
-    # Preserve original extension if possible
-    ext = os.path.splitext(file.filename or "avatar.png")[1] or ".png"
-    data = _store_file("avatar", file, ext)
+    # Preserve original extension if possible; align filename prefix with legacy 'profile_'
+    ext = os.path.splitext(file.filename or "profile.png")[1] or ".png"
+    data = _store_file("profile", file, ext)
     return data
 
 
