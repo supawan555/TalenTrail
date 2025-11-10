@@ -14,6 +14,7 @@ import { Login } from './components/login';
 import { Register } from './components/register';
 import { Candidate, mockCandidates } from './lib/mock-data';
 import { toast } from 'sonner';
+import { ScrollToTopOnCandidate } from './components/scroll-to-top-on-candidate';
 
 // Add archived candidates
 const archivedCandidates: Candidate[] = [
@@ -193,7 +194,7 @@ export default function App() {
   const handleDeleteCandidate = (candidateId: string) => {
     setCandidates(prev => prev.filter(c => c.id !== candidateId));
     setSelectedCandidate(null);
-    navigate('/pipeline');
+    navigate('/candidates');
     toast.success('Candidate deleted successfully!');
   };
 
@@ -313,7 +314,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/pipeline" element={<Pipeline onCandidateSelect={handleCandidateSelect} candidates={candidates} />} />
+  <Route path="/pipeline" element={<Pipeline onCandidateSelect={handleCandidateSelect} />} />
       <Route path="/candidates" element={<Candidates onCandidateSelect={handleCandidateSelect} />} />
       <Route path="/archived-candidates" element={<ArchivedCandidates candidates={candidates} onRestore={handleRestoreCandidate} />} />
       <Route path="/job-descriptions" element={<JobDescriptions />} />
@@ -360,6 +361,7 @@ export default function App() {
 
   return (
     <Layout>
+      <ScrollToTopOnCandidate />
       {renderRoutes()}
     </Layout>
   );

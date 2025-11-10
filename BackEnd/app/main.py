@@ -1,9 +1,10 @@
 """FastAPI application entrypoint for modular TalentTail backend."""
 import os
 import sys
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 # Ensure the BackEnd directory (parent of this app/) is on sys.path so
 # absolute imports like `from app.config import ...` work even if started inside app/.
@@ -37,6 +38,33 @@ app.add_middleware(
 # Static uploads directory (mounted at /uploads)
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
+# New compatibility endpoint that won't be shadowed by the mount above
+@app.get("/upload-file/{filename}")
+async def get_upload_file(filename: str):
+    """Serve files with legacy fallbacks and a default avatar.
+
+    Resolution order:
+    1. Exact filename in uploads
+    2. If startswith profile_ -> try avatar_<rest>
+    3. If startswith avatar_ -> try profile_<rest>
+    4. default_avatar.svg
+    """
+    candidates = [filename]
+    if filename.startswith("profile_"):
+        candidates.append("avatar_" + filename[len("profile_"):])
+    elif filename.startswith("avatar_"):
+        candidates.append("profile_" + filename[len("avatar_"):])
+
+    for cand in candidates:
+        path = os.path.join(UPLOAD_DIR, cand)
+        if os.path.isfile(path):
+            return FileResponse(path)
+
+    default_path = os.path.join(UPLOAD_DIR, "default_avatar.svg")
+    if os.path.isfile(default_path):
+        return FileResponse(default_path)
+    raise HTTPException(status_code=404, detail="File not found")
+
 # Register routers
 app.include_router(auth_router.router)
 app.include_router(candidates_router.router)
@@ -44,6 +72,7 @@ app.include_router(jobs_router.router)
 app.include_router(jobs_router.legacy_router)
 app.include_router(matching_router.router)
 app.include_router(uploads_router.router)
+app.include_router(uploads_router.legacy_router)
 
 # Startup preload
 register_startup(app)

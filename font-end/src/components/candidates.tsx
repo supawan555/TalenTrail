@@ -165,7 +165,12 @@ export function Candidates({ onCandidateSelect }: CandidatesProps) {
             <CardHeader className="pb-3">
               <div className="flex items-center space-x-3">
                 <Avatar className="w-12 h-12">
-                  <AvatarImage src={candidate.avatar} alt={candidate.name} />
+                  <AvatarImage
+                    src={candidate.avatar
+                      ? `${API_BASE}${candidate.avatar.replace('/uploads/','/upload-file/')}`
+                      : `${API_BASE}/upload-file/default_avatar.svg`}
+                    alt={candidate.name}
+                  />
                   <AvatarFallback>{candidate.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
                 </Avatar>
                 <div>
