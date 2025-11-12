@@ -29,7 +29,6 @@ interface AddCandidateModalProps {
 interface CandidateFormData {
   name: string;
   position: string;
-  experience: string;
 }
 
 export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandidateModalProps) {
@@ -51,7 +50,6 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
     defaultValues: {
       name: candidate?.name || '',
       position: candidate?.position || '',
-      experience: candidate?.experience || ''
     }
   });
 
@@ -60,8 +58,7 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
     if (candidate) {
       form.reset({
         name: candidate.name,
-        position: candidate.position,
-        experience: candidate.experience
+        position: candidate.position
       });
       setProfilePicturePreview(candidate.avatar);
       setSelectedPosition(candidate.position);
@@ -244,7 +241,6 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
       avatar: uploadedAvatarUrl || profilePicturePreview || candidate?.avatar || `https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face`,
       position: selectedPosition,
       department: candidate?.department || getDepartmentFromPosition(selectedPosition),
-      experience: data.experience,
       location: candidate?.location || 'Remote', // Default location
       matchScore: candidate?.matchScore || Math.floor(Math.random() * 30) + 70, // Random score between 70-100
       stage: candidate?.stage || ('applied' as const),
@@ -415,24 +411,7 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
                 )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="experience">Experience Level</Label>
-                <Select 
-                  value={form.watch('experience')}
-                  onValueChange={(value: string) => form.setValue('experience', value)}
-                >
-                  <SelectTrigger id="experience">
-                    <SelectValue placeholder="Select experience level" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="entry">Entry Level (0-2 years)</SelectItem>
-                    <SelectItem value="mid">Mid Level (3-5 years)</SelectItem>
-                    <SelectItem value="senior">Senior Level (5+ years)</SelectItem>
-                    <SelectItem value="lead">Lead Level (8+ years)</SelectItem>
-                    <SelectItem value="executive">Executive Level (10+ years)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              
             </div>
           </div>
 

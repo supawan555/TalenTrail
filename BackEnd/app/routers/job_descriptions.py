@@ -41,6 +41,26 @@ async def create_job(body: JobDescriptionIn):
     return JobDescriptionOut(id=str(res.inserted_id), **doc)
 
 
+@router.put("/{job_id}", response_model=JobDescriptionOut)
+async def update_job(job_id: str, body: JobDescriptionIn):
+    """Update a job description's editable fields (department, role, description)."""
+    try:
+        oid = ObjectId(job_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid job id")
+
+    existing = job_collection.find_one({"_id": oid})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    updates = body.model_dump()
+    job_collection.update_one({"_id": oid}, {"$set": updates})
+    merged = {**existing, **updates}
+    # Preserve createdDate if it exists; otherwise set it for response consistency
+    merged.setdefault("createdDate", existing.get("createdDate", datetime.utcnow().isoformat()))
+    return JobDescriptionOut(id=str(merged["_id"]), department=str(merged.get("department", "General")), role=str(merged.get("role", "Unknown")), description=str(merged.get("description", "")), createdDate=str(merged.get("createdDate")))
+
+
 @router.delete("/{job_id}")
 async def delete_job(job_id: str):
     try:
@@ -65,3 +85,7 @@ async def legacy_create_job_description(body: JobDescriptionIn):
 @legacy_router.delete("/{job_id}")
 async def legacy_delete_job_description(job_id: str):
     return await delete_job(job_id)
+
+@legacy_router.put("/{job_id}", response_model=JobDescriptionOut)
+async def legacy_update_job_description(job_id: str, body: JobDescriptionIn):
+    return await update_job(job_id, body)
