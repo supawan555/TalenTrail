@@ -103,22 +103,29 @@ export function Pipeline({ onCandidateSelect, candidates: propCandidates }: Pipe
             />
             <AvatarFallback>{candidate.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
           </Avatar>
-          <div>
-            <Link to={`/candidate/${candidate.id}`} onClick={() => onCandidateSelect(candidate)} className="font-medium text-sm hover:underline">
+          <div className="min-w-0">
+            <Link
+              to={`/candidate/${candidate.id}`}
+              onClick={() => onCandidateSelect(candidate)}
+              className="font-medium text-sm hover:underline truncate block"
+              title={candidate.name}
+            >
               {candidate.name}
             </Link>
-            <p className="text-xs text-muted-foreground">{candidate.position}</p>
+            <p className="text-xs text-muted-foreground truncate" title={candidate.position}>
+              {candidate.position}
+            </p>
           </div>
         </div>
         
         <div className="space-y-2 mb-3">
-          <div className="flex items-center text-xs text-muted-foreground">
-            <Mail className="w-3 h-3 mr-1" />
-            {candidate.email}
+          <div className="flex items-center text-xs text-muted-foreground min-w-0">
+            <Mail className="w-3 h-3 mr-1 shrink-0" />
+            <span className="truncate" title={candidate.email}>{candidate.email}</span>
           </div>
-          <div className="flex items-center text-xs text-muted-foreground">
-            <Phone className="w-3 h-3 mr-1" />
-            {candidate.phone}
+          <div className="flex items-center text-xs text-muted-foreground min-w-0">
+            <Phone className="w-3 h-3 mr-1 shrink-0" />
+            <span className="truncate" title={candidate.phone}>{candidate.phone}</span>
           </div>
           <div className="flex items-center text-xs text-muted-foreground">
             <Calendar className="w-3 h-3 mr-1" />

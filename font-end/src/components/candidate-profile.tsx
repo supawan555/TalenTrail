@@ -216,9 +216,9 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
   return (
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
-        <Button variant="ghost" onClick={onBack}>
+        <Button variant="ghost" onClick={() => navigate('/candidates')}>
           <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Pipeline
+          Back to Candidates
         </Button>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={() => setShowEditModal(true)}>

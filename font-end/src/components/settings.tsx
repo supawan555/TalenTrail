@@ -7,6 +7,17 @@ import { Label } from './ui/label';
 import { Separator } from './ui/separator';
 import { toast } from 'sonner@2.0.3';
 import { User, Lock, Save, Eye, EyeOff, LogOut } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from './ui/alert-dialog';
 
 interface ProfileFormData {
   name: string;
@@ -304,48 +315,39 @@ export function Settings({ onLogout }: SettingsProps = {}) {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4>Export Data</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Download a copy of your account data
-                  </p>
-                </div>
-                <Button variant="outline">Export</Button>
-              </div>
-              
-              <Separator />
-              
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4>Delete Account</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Permanently delete your account and all data
-                  </p>
-                </div>
-                <Button variant="destructive">Delete</Button>
-              </div>
-
               {/* Sign Out Option */}
               {onLogout && (
                 <>
-                  <Separator />
-                  
                   <div className="flex items-center justify-between p-4 border border-red-100 bg-red-50 rounded-lg">
                     <div>
                       <h4 className="text-red-900">Sign Out</h4>
-                      <p className="text-sm text-red-700">
-                        End your current session
-                      </p>
+                      <p className="text-sm text-red-700">End your current session</p>
                     </div>
-                    <Button 
-                      variant="destructive" 
-                      onClick={onLogout}
-                      className="gap-2"
-                    >
-                      <LogOut className="w-4 h-4" />
-                      Sign Out
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" className="gap-2">
+                          <LogOut className="w-4 h-4" />
+                          Sign Out
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Sign out?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            You will be signed out of your current session. You can sign back in anytime.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={onLogout}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Confirm Sign Out
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </>
               )}
