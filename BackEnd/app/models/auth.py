@@ -29,7 +29,7 @@ class VerifyOtpRequest(BaseModel):
     pendingToken: str
     code: str
 
-
+ 
 class TokenResponse(BaseModel):
     accessToken: str
     tokenType: str = "bearer"

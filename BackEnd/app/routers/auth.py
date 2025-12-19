@@ -1,6 +1,7 @@
 """Auth routes: registration, login, OTP verification."""
 from fastapi import APIRouter, HTTPException
-from datetime import datetime
+from datetime import datetime, timedelta
+from ..services.auth import craete_access_token
 import os
 import pyotp
 import uuid
@@ -72,6 +73,15 @@ async def auth_verify_otp(req: VerifyOtpRequest):
         raise HTTPException(status_code=400, detail="TOTP not configured")
     if not verify_totp_code(secret, req.code):
         raise HTTPException(status_code=401, detail="Invalid OTP code")
-    access = uuid.uuid4().hex
-    auth_sessions_collection.update_one({"_id": session["_id"]}, {"$set": {"stage": "done", "access": access}})
-    return TokenResponse(accessToken=access)
+    
+    access_token_expires = timedelta(minutes=1440)
+    access_token = craete_access_token(
+        data={"sub": user["email"]}, expires_delta=access_token_expires
+    )
+
+    auth_sessions_collection.update_one(
+    {"_id": session["_id"]},
+    {"$set": {"stage": "done", "used_at": datetime.utcnow()}})
+    return TokenResponse(accessToken=access_token, tokenType="bearer")
+
+

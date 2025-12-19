@@ -85,7 +85,7 @@
         setOtpSecret(data?.secret || '');
         setShowOtpModal(true);
       } catch (err) {
-        setServerError('Registration failed. Email may already be registered.');
+        setServerError(err + '\nRegistration failed. Email may already be registered.');
       } finally {
         setIsLoading(false);
       }

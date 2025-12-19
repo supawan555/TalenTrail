@@ -7,14 +7,14 @@ Implements candidate creation with ML pipeline:
 
 Debug endpoint available at /candidates/debug/test-ml for manual score checks.
 """
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request, Depends
 from typing import Optional
 from datetime import datetime
 from bson import ObjectId
 import logging
 import json
 import re
-
+from ..services.auth import get_current_user, require_role
 from app.db import candidate_collection
 from app.db import job_collection
 from app.utils.file_storage import save_upload_file, unique_name, UPLOAD_DIR
@@ -24,7 +24,7 @@ from app.services.resume_extraction import extract_resume_data as legacy_extract
 from app.services.resume_matching import compute_match as legacy_compute_match  # fallback if needed
 import os
 
-router = APIRouter(prefix="/candidates", tags=["candidates"])
+router = APIRouter(prefix="/candidates", tags=["candidates"],dependencies=[Depends(get_current_user)])
 logger = logging.getLogger("talenttrail.ml")
 if not logger.handlers:
     # Basic handler if not configured by app
@@ -56,9 +56,10 @@ def _is_placeholder_phone(value: Optional[str]) -> bool:
         return True
     return len(digits) < 9
 
-
+# Show List candidates
 @router.get("")
-async def list_candidates():
+async def list_candidates(
+):
     items = []
     for c in candidate_collection.find().sort("created_at", -1):
         c["id"] = str(c.pop("_id"))
@@ -72,7 +73,7 @@ async def list_candidates():
 async def list_candidates_slash():
     return await list_candidates()
 
-
+# Show on Terminal for Checking Log
 @router.post("")
 async def create_candidate(
     request: Request,
