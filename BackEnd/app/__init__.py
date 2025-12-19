@@ -1,1 +1,0 @@
-# TalentTrail app package

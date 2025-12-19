@@ -1,16 +1,25 @@
 """Authentication helpers: password hashing (PBKDF2) and TOTP utilities."""
 from __future__ import annotations
+from datetime import datetime, timedelta
+from ..config import settings 
+from ..db import auth_sessions_collection, auth_users_collection
+from fastapi.security import OAuth2PasswordBearer
+from typing import Annotated
+from fastapi import Depends, HTTPException, status
+from ..models.token import TokenData
+from ..models.auth import RegisterRequest
 import base64
 import hashlib
 import hmac
 import os
-from datetime import datetime, timedelta
 import uuid
 import pyotp
-
-from ..db import auth_sessions_collection
+import jwt
 
 _PBKDF_ITER = 200_000
+SECERT_KEY = settings.SECRET_KEY_AUTHEN
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
 def hash_password(pw: str) -> dict:
@@ -23,6 +32,44 @@ def hash_password(pw: str) -> dict:
         "hash": base64.b64encode(dk).decode("ascii"),
     }
 
+def craete_access_token(data: dict, expires_delta: timedelta | None = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECERT_KEY, algorithm="HS256")
+    return encoded_jwt
+
+async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECERT_KEY, algorithms=["HS256"])
+        email: str = payload.get("sub")
+        if email is None:
+            raise credentials_exception
+        token_data = TokenData(email=email)
+    except jwt.PyJWTError:
+        raise credentials_exception
+    user = auth_users_collection.find_one({"email": token_data.email})
+    if user is None:
+        raise credentials_exception
+    return user
+
+def require_role(role: str):
+    async def checker(current_user = Depends(get_current_user)):
+        if current_user.get("role") != role:
+            raise HTTPException(403)
+        return current_user
+    return checker
+
+async def get_current_active_user(current_user: RegisterRequest = Depends(get_current_user)):
+    return current_user
 
 def verify_password(pw: str, stored: dict) -> bool:
     try:
