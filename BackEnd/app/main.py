@@ -20,6 +20,7 @@ from app.routers import candidates as candidates_router
 from app.routers import job_descriptions as jobs_router
 from app.routers import matching as matching_router
 from app.routers import uploads as uploads_router
+from app.routers import dashboard as dashboard_router
 from app.services.job_preload import register_startup
 from app.utils.file_storage import UPLOAD_DIR
 
@@ -73,6 +74,7 @@ app.include_router(jobs_router.legacy_router)
 app.include_router(matching_router.router)
 app.include_router(uploads_router.router)
 app.include_router(uploads_router.legacy_router)
+app.include_router(dashboard_router.router)
 
 # Startup preload
 register_startup(app)

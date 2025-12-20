@@ -1,4 +1,4 @@
-"""Job Descriptions routes."""
+
 from fastapi import APIRouter, HTTPException
 from typing import List
 from bson import ObjectId

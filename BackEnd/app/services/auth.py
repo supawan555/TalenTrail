@@ -42,10 +42,10 @@ def craete_access_token(data: dict, expires_delta: timedelta | None = None):
     encoded_jwt = jwt.encode(to_encode, SECERT_KEY, algorithm="HS256")
     return encoded_jwt
 
-async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
+async def Check_Token(token: Annotated[str, Depends(oauth2_scheme)]):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
+        detail="token invalid",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
@@ -56,19 +56,22 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
         token_data = TokenData(email=email)
     except jwt.PyJWTError:
         raise credentials_exception
-    user = auth_users_collection.find_one({"email": token_data.email})
-    if user is None:
-        raise credentials_exception
-    return user
+    
+
+    
+    # user = auth_users_collection.find_one({"email": token_data.email})
+    # if user is None:
+    #     raise credentials_exception
+    # return user
 
 def require_role(role: str):
-    async def checker(current_user = Depends(get_current_user)):
+    async def checker(current_user = Depends(Check_Token)):
         if current_user.get("role") != role:
             raise HTTPException(403)
         return current_user
     return checker
 
-async def get_current_active_user(current_user: RegisterRequest = Depends(get_current_user)):
+async def get_current_active_user(current_user: RegisterRequest = Depends(Check_Token)):
     return current_user
 
 def verify_password(pw: str, stored: dict) -> bool:
