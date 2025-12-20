@@ -14,7 +14,7 @@ from bson import ObjectId
 import logging
 import json
 import re
-from ..services.auth import get_current_user, require_role
+from ..services.auth import Check_Token, require_role
 from app.db import candidate_collection
 from app.db import job_collection
 from app.utils.file_storage import save_upload_file, unique_name, UPLOAD_DIR
@@ -24,7 +24,7 @@ from app.services.resume_extraction import extract_resume_data as legacy_extract
 from app.services.resume_matching import compute_match as legacy_compute_match  # fallback if needed
 import os
 
-router = APIRouter(prefix="/candidates", tags=["candidates"],dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/candidates", tags=["candidates"], dependencies=[Depends(Check_Token)])
 logger = logging.getLogger("talenttrail.ml")
 if not logger.handlers:
     # Basic handler if not configured by app
