@@ -1,21 +1,16 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends
 from typing import List
 from bson import ObjectId
 from datetime import datetime
 
 from app.db import job_collection
 from typing import Annotated
-from app.services.auth import Check_Token
+from app.services.auth import get_current_user_from_cookie
 
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"]) 
 
 
-@router.get("")
-async def validate_token(_token: Annotated[str, Depends(Check_Token)]):
-	"""Validate JWT using shared `Check_Token` dependency.
-
-	If dependency passes, token is valid; otherwise it raises 401.
-	"""
-	print("TOKEN VALID")
-	return {"message": "token valid"}
+@router.get("/profile") 
+async def get_dashboard_root(current_user: dict = Depends(get_current_user_from_cookie)):
+    return current_user

@@ -5,7 +5,7 @@ from ..config import settings
 from ..db import auth_sessions_collection, auth_users_collection
 from fastapi.security import OAuth2PasswordBearer
 from typing import Annotated
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from ..models.token import TokenData
 from ..models.auth import RegisterRequest
 import base64
@@ -14,7 +14,7 @@ import hmac
 import os
 import uuid
 import pyotp
-import jwt
+from jose import jwt, JWTError
 
 _PBKDF_ITER = 200_000
 SECERT_KEY = settings.SECRET_KEY_AUTHEN
@@ -32,7 +32,7 @@ def hash_password(pw: str) -> dict:
         "hash": base64.b64encode(dk).decode("ascii"),
     }
 
-def craete_access_token(data: dict, expires_delta: timedelta | None = None):
+def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
@@ -64,12 +64,46 @@ async def Check_Token(token: Annotated[str, Depends(oauth2_scheme)]):
     #     raise credentials_exception
     # return user
 
+# สร้าง Dependency ใหม่สำหรับอ่าน Cookie
+async def get_current_user_from_cookie(request: Request):
+    token = request.cookies.get("access_token") # <--- อ่านจาก Cookie
+    
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+    )
+    
+    if not token:
+        raise credentials_exception
+
+    try:
+        # แกะ Token
+        payload = jwt.decode(token, SECERT_KEY, algorithms=["HS256"])
+        email: str = payload.get("sub")
+        role: str = payload.get("role") # <--- ดึง Role ออกมาด้วย
+        
+        if email is None:
+            raise credentials_exception
+            
+        # Return dict ง่ายๆ เพื่อเอาไปใช้ต่อ (Stateless)
+        return {"email": email, "role": role}
+        
+    except JWTError: # ใช้ JWTError ของ python-jose
+        raise credentials_exception
+    
+
+# ปรับ require_role ให้ใช้ dependency ตัวใหม่
 def require_role(role: str):
-    async def checker(current_user = Depends(Check_Token)):
+    # เปลี่ยนมาใช้ get_current_user_from_cookie
+    async def checker(current_user: dict = Depends(get_current_user_from_cookie)): 
         if current_user.get("role") != role:
-            raise HTTPException(403)
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, 
+                detail="Permission Denied"
+            )
         return current_user
     return checker
+
 
 async def get_current_active_user(current_user: RegisterRequest = Depends(Check_Token)):
     return current_user
