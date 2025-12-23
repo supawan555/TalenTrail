@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext'; // <--- 1. เพิ่ม Import นี้
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Progress } from './ui/progress';
@@ -18,6 +19,8 @@ const STAGE_COLORS = {
 const STAGES = ['applied', 'screening', 'interview', 'final', 'hired'] as const;
 
 export function Dashboard() {
+  const { user } = useAuth(); // <--- 2. ดึงข้อมูล User มาใช้
+
   // Filter out archived candidates
   const activeCandidates = mockCandidates.filter(c => c.stage !== 'rejected' && c.stage !== 'drop-off');
   const recentCandidates = activeCandidates.slice(0, 5);
@@ -192,6 +195,21 @@ export function Dashboard() {
 
   return (
     <div className="p-6 space-y-6">
+
+      {/* 3. เพิ่ม Header แสดงชื่อ User และ Role ตรงนี้ครับ */}
+      <div className="flex flex-col space-y-2">
+        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+        <div className="text-muted-foreground">
+          Welcome back, <span className="font-semibold text-primary">{user?.email}</span>
+          {user?.role && (
+            <Badge variant="outline" className="ml-2 capitalize">
+              {user.role}
+            </Badge>
+          )}
+        </div>
+      </div>
+      {/* ------------------------------------------------ */}
+
       {/* Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <MetricCard

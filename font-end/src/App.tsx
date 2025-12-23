@@ -1,5 +1,10 @@
 import { useState } from 'react';
-import { Routes, Route, useNavigate, useParams, Navigate } from 'react-router-dom';
+import { Routes, Route, useNavigate, useParams, Navigate, Outlet } from 'react-router-dom';
+import { Toaster, toast } from 'sonner';
+// --- Context & Auth ---
+import { AuthProvider } from './context/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
+// --- Components ---
 import { Layout } from './components/layout';
 import { Dashboard } from './components/dashboard';
 import { Pipeline } from './components/pipeline';
@@ -12,9 +17,9 @@ import { Notes } from './components/notes';
 import { Settings } from './components/settings';
 import { Login } from './components/login';
 import { Register } from './components/register';
-import { Candidate, mockCandidates } from './lib/mock-data';
-import { toast } from 'sonner';
 import { ScrollToTopOnCandidate } from './components/scroll-to-top-on-candidate';
+// --- Data ---
+import { Candidate, mockCandidates } from './lib/mock-data';
 
 // Add archived candidates
 const archivedCandidates: Candidate[] = [
@@ -160,14 +165,17 @@ const archivedCandidates: Candidate[] = [
   }
 ];
 
-export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
-  const [candidates, setCandidates] = useState<Candidate[]>([...mockCandidates, ...archivedCandidates]);
+// สร้าง Component ข้างในเพื่อแยก Logic การจัดการ Data ออกมา
+function AppContent() {
   const navigate = useNavigate();
 
+  // State สำหรับจัดการ Data (Candidates) ยังคงไว้ที่นี่เหมือนเดิม
+  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [candidates, setCandidates] = useState<Candidate[]>([...mockCandidates, ...archivedCandidates]);
+
+  // --- Handlers ---
+
   const handleCandidateSelect = (candidate: Candidate) => {
-    // Find the latest version of the candidate from state
     const latestCandidate = candidates.find(c => c.id === candidate.id) || candidate;
     setSelectedCandidate(latestCandidate);
     navigate(`/candidate/${latestCandidate.id}`);
@@ -200,7 +208,6 @@ export default function App() {
 
   const handleNextStage = (candidateId: string) => {
     const stageOrder: Candidate['stage'][] = ['applied', 'screening', 'interview', 'final', 'hired'];
-    
     setCandidates(prev => 
       prev.map(c => {
         if (c.id === candidateId) {
@@ -270,13 +277,17 @@ export default function App() {
         return c;
       })
     );
+    toast.success('Candidate restored successfully');
   };
 
+  // Wrapper Component for Candidate Profile
   const CandidateProfileWrapper = () => {
     const { id } = useParams();
     let seed = candidates.find(c => c.id === id) || selectedCandidate;
+    
     if (!id) return <Navigate to="/pipeline" replace />;
-    // If seed not found in local state, create a minimal placeholder so component can fetch from backend
+    
+    // Fallback seed
     if (!seed) {
       seed = {
         id,
@@ -310,59 +321,71 @@ export default function App() {
     );
   };
 
-  const renderRoutes = () => (
+  // --- Routing Structure ---
+  return (
     <Routes>
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/dashboard" element={<Dashboard />} />
-  <Route path="/pipeline" element={<Pipeline onCandidateSelect={handleCandidateSelect} />} />
-      <Route path="/candidates" element={<Candidates onCandidateSelect={handleCandidateSelect} />} />
-      <Route path="/archived-candidates" element={<ArchivedCandidates candidates={candidates} onRestore={handleRestoreCandidate} />} />
-      <Route path="/job-descriptions" element={<JobDescriptions />} />
-      <Route path="/analytics" element={<Analytics />} />
-      <Route path="/notes" element={<Notes />} />
-      <Route path="/settings" element={<Settings onLogout={() => setIsAuthenticated(false)} />} />
-      <Route path="/candidate/:id" element={<CandidateProfileWrapper />} />
-      <Route path="*" element={<Dashboard />} />
+      {/* 1. Public Routes: Login & Register (เข้าได้เลยไม่ต้อง Login) */}
+      <Route 
+        path="/login" 
+        element={
+          <Login 
+             // หมายเหตุ: Login ควรแก้ให้ใช้ useAuth().login() ภายในตัว Component เอง
+             // แต่ใส่ prop นี้ไว้เผื่อ Navigate (ถ้าจำเป็น)
+             onShowRegister={() => navigate('/register')} 
+          />
+        } 
+      />
+      <Route 
+        path="/register" 
+        element={
+          <Register 
+            onRegister={() => {
+               toast.success('Account created successfully! Please sign in.');
+               navigate('/login');
+            }}
+            onBackToLogin={() => navigate('/login')} 
+          />
+        } 
+      />
+
+      {/* 2. Protected Routes: ต้อง Login ก่อนถึงจะเข้าได้ */}
+      <Route element={<ProtectedRoute />}>
+         {/* Layout จะถูกคลุมด้วย ProtectedRoute อัตโนมัติ */}
+         <Route element={
+            <Layout>
+              <ScrollToTopOnCandidate />
+              <Outlet /> {/* หน้าต่างๆ จะมาโผล่ตรงนี้ */}
+            </Layout>
+         }>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            
+            <Route path="/pipeline" element={<Pipeline onCandidateSelect={handleCandidateSelect} />} />
+            <Route path="/candidates" element={<Candidates onCandidateSelect={handleCandidateSelect} />} />
+            <Route path="/archived-candidates" element={<ArchivedCandidates candidates={candidates} onRestore={handleRestoreCandidate} />} />
+            
+            <Route path="/job-descriptions" element={<JobDescriptions />} />
+            <Route path="/analytics" element={<Analytics />} />
+            <Route path="/notes" element={<Notes />} />
+            <Route path="/settings" element={<Settings onLogout={() => {/* Logout จัดการใน AuthContext */}} />} />
+            
+            <Route path="/candidate/:id" element={<CandidateProfileWrapper />} />
+         </Route>
+      </Route>
+
+      {/* 3. Catch All: ถ้าไม่เจอหน้าไหน ให้ไป Login */}
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );
+}
 
-  // Unauthenticated routes: login & register
-  if (!isAuthenticated) {
-    return (
-      <Routes>
-        <Route
-          path="/login"
-          element={
-            <Login
-              onLogin={() => {
-                setIsAuthenticated(true);
-                navigate('/');
-              }}
-              onShowRegister={() => navigate('/register')}
-            />
-          }
-        />
-        <Route
-          path="/register"
-          element={
-            <Register
-              onRegister={() => {
-                toast.success('Account created successfully! Please sign in.');
-                navigate('/login');
-              }}
-              onBackToLogin={() => navigate('/login')}
-            />
-          }
-        />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    );
-  }
-
+// Main App Component
+export default function App() {
   return (
-    <Layout>
-      <ScrollToTopOnCandidate />
-      {renderRoutes()}
-    </Layout>
+    // ครอบด้วย AuthProvider เพื่อให้ Context ทำงานได้ทั้ง App
+    <AuthProvider>
+      <AppContent />
+      <Toaster />
+    </AuthProvider>
   );
 }

@@ -1,7 +1,7 @@
 """Auth routes: registration, login, OTP verification."""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response, Depends
 from datetime import datetime, timedelta
-from ..services.auth import craete_access_token
+from ..services.auth import create_access_token, hash_password, verify_password, create_pending_session, verify_totp_code
 import os
 import pyotp
 import uuid
@@ -55,8 +55,8 @@ async def auth_login(req: LoginRequest):
     return LoginResponse(otp_required=True, pendingToken=token)
 
 
-@router.post("/verify-otp", response_model=TokenResponse)
-async def auth_verify_otp(req: VerifyOtpRequest):
+@router.post("/verify-otp")
+async def auth_verify_otp(req: VerifyOtpRequest, response: Response):
     session = auth_sessions_collection.find_one({"token": req.pendingToken, "stage": "pending"})
     if not session:
         raise HTTPException(status_code=401, detail="Invalid pending token")
@@ -75,13 +75,31 @@ async def auth_verify_otp(req: VerifyOtpRequest):
         raise HTTPException(status_code=401, detail="Invalid OTP code")
     
     access_token_expires = timedelta(minutes=1440)
-    access_token = craete_access_token(
-        data={"sub": user["email"]}, expires_delta=access_token_expires
+    access_token = create_access_token(
+        data={"sub": user["email"], "role": user.get("role", "user")}, 
+        expires_delta=access_token_expires
     )
 
+    # ฝัง HTTP-Only Cookie
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        max_age=1440 * 60, # หน่วยวินาที
+        samesite="lax",
+        secure=False # แก้เป็น True ถ้าขึ้น Production
+    )
+
+    # อัปเดต Session ว่าใช้แล้ว
     auth_sessions_collection.update_one(
-    {"_id": session["_id"]},
-    {"$set": {"stage": "done", "used_at": datetime.utcnow()}})
-    return TokenResponse(accessToken=access_token, tokenType="bearer")
+        {"_id": session["_id"]},
+        {"$set": {"stage": "done", "used_at": datetime.utcnow()}}
+    )
+    # Return แค่ message (Token อยู่ใน Cookie แล้ว)
+    return {"message": "Login successful", "role": user.get("role")}
 
-
+    # เพิ่ม Logout ให้ด้วย
+@router.post("/logout")
+async def logout(response: Response):
+    response.delete_cookie("access_token")
+    return {"message": "Logout successful"}

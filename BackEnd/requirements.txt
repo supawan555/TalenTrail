@@ -8,3 +8,7 @@ pyotp
 pdfplumber
 spacy
 pydantic-settings
+PyJWT
+passlib[bcrypt]
+python-jose[cryptography]
+axios
