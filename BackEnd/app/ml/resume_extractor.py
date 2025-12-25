@@ -1,75 +1,80 @@
-"""High-level resume extraction API expected by the app.
-
-Functions:
-- extract_resume_text(file_path: str) -> str
-- extract_resume_data(resume_text: str) -> dict
-
-Implementation bridges to existing services-based extractors for consistency.
-"""
-from __future__ import annotations
+# filepath: app/ml/resume_extractor.py
+import fitz  # PyMuPDF
 import re
+import os
 from typing import Dict, Any
-from pathlib import Path
 
-# Reuse existing extraction logic to read PDFs
-from app.services import resume_extraction as svc_extract
+# 1. โหลด Skills จากไฟล์ text (Dynamic!)
+KNOWN_SKILLS = set()
+try:
+    # หาไฟล์ skills.txt ในโฟลเดอร์เดียวกันหรือใกล้เคียง
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(os.path.dirname(current_dir)) # ถอยกลับไปหา root
+    skills_path = os.path.join(current_dir, "skills.txt") 
+    
+    # ถ้าหาไม่เจอ ลองหาที่ root
+    if not os.path.exists(skills_path):
+        skills_path = "skills.txt"
 
-EMAIL_RE = re.compile(r'[\w\.-]+@[\w\.-]+')
-PHONE_RE = re.compile(r'(\+?\d[\d\s-]{8,15}\d)')
+    with open(skills_path, "r", encoding="utf-8") as f:
+        for line in f:
+            skill = line.strip().lower()
+            if skill:
+                KNOWN_SKILLS.add(skill)
+    print(f"🤖 [ML] Loaded {len(KNOWN_SKILLS)} skills from file.")
+except Exception as e:
+    print(f"⚠️ [ML] Warning: skills.txt not found ({e}). Using default set.")
+    KNOWN_SKILLS = {'python', 'java', 'sql', 'react', 'javascript'} # Default กันตาย
 
-SKILL_KEYWORDS = [
-    'Python', 'Java', 'C++', 'SQL', 'TensorFlow', 'Keras', 'Pandas', 'NumPy',
-    'Machine Learning', 'AI', 'Deep Learning', 'HTML', 'CSS', 'JavaScript',
-    'React', 'Node', 'Django', 'Flask', 'AWS', 'Docker', 'Kubernetes'
-]
+# 2. ฟังก์ชันทำความสะอาด (จาก Code ของเรา)
+def clean_text(text: str) -> str:
+    text = text.lower()
+    text = re.sub(r'[^a-z0-9\s\+]', '', text) # เก็บ + ไว้ให้ C++
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
 
-
+# 3. ฟังก์ชันอ่าน PDF (แก้ปัญหา svc_extract หายไป)
 def extract_resume_text(file_path: str) -> str:
-    """Extract raw text from a resume file (PDF supported)."""
-    p = Path(file_path)
-    raw_text = ''
-    if p.suffix.lower() == '.pdf':
-        # Use the same PDF path extractor used by services module
-        raw_text = svc_extract._extract_text_pdf(p)  # type: ignore[attr-defined]
-    # Could add DOCX or other formats here if needed.
-    return raw_text or ''
-
-
-def _extract_skills(text: str) -> list[str]:
-    found = []
-    for skill in SKILL_KEYWORDS:
-        if re.search(r'\b' + re.escape(skill) + r'\b', text, re.IGNORECASE):
-            found.append(skill)
-    return sorted(set(found))
-
-
-def _extract_experience_lines(text: str) -> str:
-    lines = []
-    for line in (text or '').split('\n'):
-        if re.search(r'experience|worked|intern|ประสบการณ์|บริษัท', line, re.IGNORECASE):
-            lines.append(line.strip())
-    return '\n'.join(lines) if lines else ''
-
-
-def extract_resume_data(resume_text: str) -> Dict[str, Any]:
-    """Extract structured data from already extracted resume text."""
-    resume_text = resume_text or ''
-    emails = EMAIL_RE.findall(resume_text)
-    phones = PHONE_RE.findall(resume_text)
-
-    # Try spaCy PERSON via existing services loader (graceful fallback if missing)
-    name = None
+    text_content = ""
     try:
-        name = svc_extract._extract_name(resume_text)  # type: ignore[attr-defined]
-    except Exception:
-        name = None
+        doc = fitz.open(file_path)
+        for page in doc:
+            text_content += page.get_text() + "\n"
+        doc.close()
+        return text_content
+    except Exception as e:
+        print(f"❌ Error reading PDF: {e}")
+        return ""
+
+# 4. ฟังก์ชันสกัดข้อมูล (รวมร่าง)
+def extract_resume_data(resume_text: str) -> Dict[str, Any]:
+    cleaned = clean_text(resume_text)
+    
+    # หา Skills
+    words = set(cleaned.split())
+    found_skills = list(words.intersection(KNOWN_SKILLS))
+
+    # หา Email
+    email_match = re.search(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', resume_text)
+    
+    # หา Phone (ใช้ Regex ใหม่ที่คุณทดสอบแล้วว่าเวิร์ค)
+    phone_match = re.search(r'(\+66|66|0)\s?\d{1,2}[-.\s]?\d{3}[-.\s]?\d{4}', resume_text)
+
+    # หา Name (แบบง่าย)
+    name = None
+    lines = resume_text.split('\n')
+    for line in lines:
+        l = line.strip()
+        if l and "resume" not in l.lower() and len(l) < 50:
+            name = l
+            break
 
     return {
         'name': name,
-        'email': emails[0] if emails else None,
-        'phone': phones[0] if phones else None,
-        'skills': _extract_skills(resume_text),
-        'experience': _extract_experience_lines(resume_text) or None,
+        'email': email_match.group(0) if email_match else None,
+        'phone': phone_match.group(0) if phone_match else None,
+        'skills': found_skills,
+        'experience': None, # ไว้ทำเวอร์ชันหน้า
         'raw_text': resume_text,
     }
 
