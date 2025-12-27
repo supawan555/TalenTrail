@@ -5,7 +5,7 @@ from ..config import settings
 from ..db import auth_sessions_collection, auth_users_collection
 from fastapi.security import OAuth2PasswordBearer
 from typing import Annotated
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from ..models.token import TokenData
 from ..models.auth import RegisterRequest
 import base64
@@ -14,7 +14,7 @@ import hmac
 import os
 import uuid
 import pyotp
-import jwt
+from jose import jwt, JWTError
 
 _PBKDF_ITER = 200_000
 SECERT_KEY = settings.SECRET_KEY_AUTHEN
@@ -31,7 +31,7 @@ def hash_password(pw: str) -> dict:
         "hash": base64.b64encode(dk).decode("ascii"),
     }
 
-def craete_access_token(data: dict, expires_delta: timedelta | None = None):
+def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
@@ -58,9 +58,13 @@ async def Check_Token(token: Annotated[str, Depends(oauth2_scheme)]):
     
 
 def require_role(role: str):
-    async def checker(current_user = Depends(Check_Token)):
+    # เปลี่ยนมาใช้ get_current_user_from_cookie
+    async def checker(current_user: dict = Depends(get_current_user_from_cookie)): 
         if current_user.get("role") != role:
-            raise HTTPException(403)
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, 
+                detail="Permission Denied"
+            )
         return current_user
     return checker
 

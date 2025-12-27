@@ -1,11 +1,12 @@
+import { useAuth } from '../context/AuthContext';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form@7.55.0';
+import { useForm } from 'react-hook-form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Separator } from './ui/separator';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { User, Lock, Save, Eye, EyeOff, LogOut } from 'lucide-react';
 import {
   AlertDialog,
@@ -35,15 +36,16 @@ interface SettingsProps {
 }
 
 export function Settings({ onLogout }: SettingsProps = {}) {
+  const { user, logout } = useAuth(); // <--- ดึง user และ logout มาใช้
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Profile form
   const profileForm = useForm<ProfileFormData>({
-    defaultValues: {
-      name: 'Sarah Johnson',
-      email: 'sarah.johnson@talenttrail.com'
+    values: { // <--- ใช้ values แทน defaultValues
+      name: '', // เนื่องจากใน AuthContext เราเก็บแค่ email กับ role อาจจะต้องปล่อยว่างหรือเพิ่ม field ใน context ทีหลัง
+      email: user?.email || '' // <--- ใส่ Email ของจริง
     }
   });
 
@@ -115,7 +117,7 @@ export function Settings({ onLogout }: SettingsProps = {}) {
                   <Label htmlFor="name">Full Name</Label>
                   <Input
                     id="name"
-                    {...profileForm.register('name', { 
+                    {...profileForm.register('name', {
                       required: 'Name is required',
                       minLength: { value: 2, message: 'Name must be at least 2 characters' }
                     })}
@@ -133,7 +135,7 @@ export function Settings({ onLogout }: SettingsProps = {}) {
                   <Input
                     id="email"
                     type="email"
-                    {...profileForm.register('email', { 
+                    {...profileForm.register('email', {
                       required: 'Email is required',
                       pattern: {
                         value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
@@ -151,8 +153,8 @@ export function Settings({ onLogout }: SettingsProps = {}) {
               </div>
 
               <div className="flex justify-end pt-4">
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   disabled={profileForm.formState.isSubmitting}
                   className="flex items-center gap-2"
                 >
@@ -183,8 +185,8 @@ export function Settings({ onLogout }: SettingsProps = {}) {
                   <Input
                     id="currentPassword"
                     type={showCurrentPassword ? 'text' : 'password'}
-                    {...passwordForm.register('currentPassword', { 
-                      required: 'Current password is required' 
+                    {...passwordForm.register('currentPassword', {
+                      required: 'Current password is required'
                     })}
                     placeholder="Enter your current password"
                     className="pr-10"
@@ -219,7 +221,7 @@ export function Settings({ onLogout }: SettingsProps = {}) {
                     <Input
                       id="newPassword"
                       type={showNewPassword ? 'text' : 'password'}
-                      {...passwordForm.register('newPassword', { 
+                      {...passwordForm.register('newPassword', {
                         required: 'New password is required',
                         minLength: { value: 8, message: 'Password must be at least 8 characters' }
                       })}
@@ -253,8 +255,8 @@ export function Settings({ onLogout }: SettingsProps = {}) {
                     <Input
                       id="confirmPassword"
                       type={showConfirmPassword ? 'text' : 'password'}
-                      {...passwordForm.register('confirmPassword', { 
-                        required: 'Please confirm your new password' 
+                      {...passwordForm.register('confirmPassword', {
+                        required: 'Please confirm your new password'
                       })}
                       placeholder="Confirm new password"
                       className="pr-10"
@@ -292,8 +294,8 @@ export function Settings({ onLogout }: SettingsProps = {}) {
               </div>
 
               <div className="flex justify-end pt-4">
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   disabled={passwordForm.formState.isSubmitting}
                   className="flex items-center gap-2"
                 >
@@ -340,7 +342,10 @@ export function Settings({ onLogout }: SettingsProps = {}) {
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
                           <AlertDialogAction
-                            onClick={onLogout}
+                            onClick={() => {
+                              logout(); // <--- สั่ง Logout จริง
+                              if (onLogout) onLogout();
+                            }}
                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                           >
                             Confirm Sign Out

@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import api from '../lib/api'; // ✅ 1. Import api มาใช้แทน fetch
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Progress } from './ui/progress';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { 
   Search, 
@@ -14,13 +14,14 @@ import {
   SortAsc, 
   Mail, 
   Phone, 
-  Star,
   Calendar,
   Plus,
-  Users
+  Users,
+  Star
 } from 'lucide-react';
 import { AddCandidateModal } from './add-candidate-modal';
 import { Candidate } from '../lib/mock-data';
+import { toast } from 'sonner'; // เพิ่ม Toast เพื่อแจ้งเตือน
 
 const API_BASE = 'http://localhost:8000';
 
@@ -34,47 +35,64 @@ export function Candidates({ onCandidateSelect }: CandidatesProps) {
   const [stageFilter, setStageFilter] = useState('all');
   const [sortBy, setSortBy] = useState('recent');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // Filter out archived candidates (rejected and drop-off)
   const activeCandidates = allCandidates.filter(c => c.stage !== 'rejected' && c.stage !== 'drop-off');
 
-  // Load candidates from backend on mount
+  // ✅ 2. ใช้ api.get แทน fetch และ Map ข้อมูลวันที่
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch(`${API_BASE}/candidates/`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data: Candidate[] = await res.json();
-        setAllCandidates(data);
+        const res = await api.get('/candidates');
+        
+        // Map ข้อมูลจาก Backend (snake_case) ให้เข้ากับ Frontend (camelCase)
+        const mappedData = res.data.map((c: any) => ({
+           ...c,
+           // Backend ส่ง created_at แต่ Frontend ใช้ appliedDate
+           appliedDate: c.created_at || c.appliedDate || new Date().toISOString(),
+           // ป้องกัน matchScore เป็น null
+           matchScore: c.matchScore || 0
+        }));
+
+        setAllCandidates(mappedData);
       } catch (err) {
         console.error('Failed to load candidates', err);
-        // fallback to empty list
+        toast.error('Failed to load candidates');
         setAllCandidates([]);
+      } finally {
+        setLoading(false);
       }
     };
     load();
   }, []);
 
+  // ✅ 3. ใช้ api.post แทน fetch
   const handleAddCandidate = async (newCandidate: Candidate) => {
     try {
-      const res = await fetch(`${API_BASE}/candidates/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newCandidate),
-      });
-      if (!res.ok) throw new Error(`Create failed (${res.status})`);
-      const created: Candidate = await res.json();
-      setAllCandidates(prev => [created, ...prev]);
+      const res = await api.post('/candidates', newCandidate);
+      const created = res.data;
+      
+      // Map ข้อมูลตัวใหม่ด้วย
+      const mappedCreated = {
+          ...created,
+          appliedDate: created.created_at || new Date().toISOString(),
+          matchScore: created.matchScore || 0
+      };
+
+      setAllCandidates(prev => [mappedCreated, ...prev]);
+      // Toast แจ้งเตือนน่าจะอยู่ใน Modal แล้ว หรือใส่ตรงนี้เพิ่มก็ได้
+      // toast.success('Candidate added successfully'); 
     } catch (err) {
       console.error('Add candidate failed', err);
-      // still call local handler to update UI if desired; for now we just log
+      toast.error('Failed to add candidate');
     }
   };
 
   const filteredCandidates = activeCandidates.filter(candidate => {
-    const matchesSearch = candidate.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         candidate.position.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         candidate.email.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = (candidate.name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+                          (candidate.position?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+                          (candidate.email?.toLowerCase() || '').includes(searchQuery.toLowerCase());
     const matchesStage = stageFilter === 'all' || candidate.stage === stageFilter;
     return matchesSearch && matchesStage;
   });
@@ -82,12 +100,15 @@ export function Candidates({ onCandidateSelect }: CandidatesProps) {
   const sortedCandidates = [...filteredCandidates].sort((a, b) => {
     switch (sortBy) {
       case 'name':
-        return a.name.localeCompare(b.name);
+        return (a.name || '').localeCompare(b.name || '');
       case 'match':
-        return b.matchScore - a.matchScore;
+        return (b.matchScore || 0) - (a.matchScore || 0);
       case 'recent':
       default:
-        return new Date(b.appliedDate).getTime() - new Date(a.appliedDate).getTime();
+        // ตรวจสอบวันที่ก่อน parse
+        const dateA = a.appliedDate ? new Date(a.appliedDate).getTime() : 0;
+        const dateB = b.appliedDate ? new Date(b.appliedDate).getTime() : 0;
+        return dateB - dateA;
     }
   });
 
@@ -158,7 +179,15 @@ export function Candidates({ onCandidateSelect }: CandidatesProps) {
         </CardContent>
       </Card>
 
+      {/* Loading State */}
+      {loading && (
+        <div className="text-center py-10">
+            <p>Loading candidates...</p>
+        </div>
+      )}
+
       {/* Candidates Grid */}
+      {!loading && (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {sortedCandidates.map((candidate) => (
           <Card key={candidate.id} className="hover:shadow-md transition-shadow cursor-pointer">
@@ -167,11 +196,11 @@ export function Candidates({ onCandidateSelect }: CandidatesProps) {
                 <Avatar className="w-12 h-12">
                   <AvatarImage
                     src={candidate.avatar
-                      ? `${API_BASE}${candidate.avatar.replace('/uploads/','/upload-file/')}`
+                      ? (candidate.avatar.startsWith('http') ? candidate.avatar : `${API_BASE}${candidate.avatar.replace('/uploads/', '/upload-file/')}`)
                       : `${API_BASE}/upload-file/default_avatar.svg`}
                     alt={candidate.name}
                   />
-                  <AvatarFallback>{candidate.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                  <AvatarFallback>{(candidate.name || '?').split(' ').map(n => n[0]).join('')}</AvatarFallback>
                 </Avatar>
                 <div>
                   <Link to={`/candidate/${candidate.id}`} onClick={() => onCandidateSelect(candidate)} className="no-underline">
@@ -189,11 +218,11 @@ export function Candidates({ onCandidateSelect }: CandidatesProps) {
                 </div>
                 <div className="flex items-center text-sm text-muted-foreground">
                   <Phone className="w-3 h-3 mr-2" />
-                  {candidate.phone}
+                  {candidate.phone || 'N/A'}
                 </div>
                 <div className="flex items-center text-sm text-muted-foreground">
                   <Calendar className="w-3 h-3 mr-2" />
-                  Applied {new Date(candidate.appliedDate).toLocaleDateString()}
+                  Applied {candidate.appliedDate ? new Date(candidate.appliedDate).toLocaleDateString() : 'N/A'}
                 </div>
               </div>
 
@@ -202,10 +231,10 @@ export function Candidates({ onCandidateSelect }: CandidatesProps) {
                   <span className="text-sm font-medium">Match Score</span>
                   <div className="flex items-center space-x-1">
                     <Star className="w-3 h-3 text-yellow-500" />
-                    <Badge variant="secondary">{candidate.matchScore}%</Badge>
+                    <Badge variant="secondary">{candidate.matchScore || 0}%</Badge>
                   </div>
                 </div>
-                <Progress value={candidate.matchScore} className="h-2" />
+                <Progress value={candidate.matchScore || 0} className="h-2" />
               </div>
 
               <div className="flex items-center justify-between">
@@ -217,14 +246,15 @@ export function Candidates({ onCandidateSelect }: CandidatesProps) {
           </Card>
         ))}
       </div>
+      )}
 
-      {sortedCandidates.length === 0 && (
+      {!loading && sortedCandidates.length === 0 && (
         <Card>
           <CardContent className="py-12 text-center">
             <div className="text-muted-foreground">
               <Users className="w-12 h-12 mx-auto mb-4" />
               <h3 className="font-medium">No candidates found</h3>
-              <p className="text-sm">Try adjusting your search criteria or filters</p>
+              <p className="text-sm">Try adding a new candidate or adjusting filters</p>
             </div>
           </CardContent>
         </Card>
