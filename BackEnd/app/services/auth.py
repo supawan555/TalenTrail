@@ -21,7 +21,6 @@ SECERT_KEY = settings.SECRET_KEY_AUTHEN
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
-
 def hash_password(pw: str) -> dict:
     salt = os.urandom(16)
     dk = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), salt, _PBKDF_ITER)
@@ -58,12 +57,6 @@ async def Check_Token(token: Annotated[str, Depends(oauth2_scheme)]):
         raise credentials_exception
     
 
-    
-    # user = auth_users_collection.find_one({"email": token_data.email})
-    # if user is None:
-    #     raise credentials_exception
-    # return user
-
 def require_role(role: str):
     async def checker(current_user = Depends(Check_Token)):
         if current_user.get("role") != role:
@@ -71,8 +64,6 @@ def require_role(role: str):
         return current_user
     return checker
 
-async def get_current_active_user(current_user: RegisterRequest = Depends(Check_Token)):
-    return current_user
 
 def verify_password(pw: str, stored: dict) -> bool:
     try:

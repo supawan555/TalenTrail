@@ -6,7 +6,7 @@ import { Button } from './ui/button';
 import { Lock, Mail, Eye, EyeOff, Shield } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+const API_BASE = 'http://localhost:8000';
 
 interface LoginProps {
   onLogin: () => void;
