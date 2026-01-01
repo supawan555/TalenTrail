@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -10,8 +10,11 @@ import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
 import { Archive, Search, Eye, RotateCcw, Mail, Phone, MapPin, Calendar, Briefcase, Award } from 'lucide-react';
-import { Candidate, mockCandidates } from '../lib/mock-data';
-import { toast } from 'sonner@2.0.3';
+import { Candidate } from '../lib/mock-data';
+import { toast } from 'sonner';
+import api from '../lib/api';
+
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
 interface ArchivedCandidatesProps {
   candidates: Candidate[];
@@ -30,9 +33,62 @@ export function ArchivedCandidates({ candidates, onRestore }: ArchivedCandidates
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showRestoreDialog, setShowRestoreDialog] = useState(false);
   const [candidateToRestore, setCandidateToRestore] = useState<Candidate | null>(null);
+  const [remoteCandidates, setRemoteCandidates] = useState<Candidate[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load candidates from backend if not provided via props
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      if (candidates && candidates.length > 0) return; // use provided list
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await api.get('/candidates/');
+        const data = res.data as any[];
+        if (cancelled) return;
+        const normalized: Candidate[] = (data || []).map((c: any) => ({
+          id: c.id ?? c._id ?? String(Date.now()),
+          name: c.name ?? 'Unknown',
+          email: c.email ?? 'candidate@example.com',
+          phone: c.phone ?? '+1 234 567 8900',
+          avatar: c.avatar ?? '',
+          position: c.position ?? (c.role ?? 'Unknown'),
+          department: c.department ?? 'Engineering',
+          experience: c.experience ?? 'mid',
+          location: c.location ?? 'Remote',
+          matchScore: typeof c.matchScore === 'number' ? c.matchScore : 0,
+          stage: c.stage ?? 'applied',
+          appliedDate: c.appliedDate ?? c.created_at ?? new Date().toISOString(),
+          skills: Array.isArray(c.skills) ? c.skills : [],
+          salary: c.salary ?? '',
+          availability: c.availability ?? '',
+          resumeUrl: c.resume_url ?? c.resumeUrl ?? '',
+          resumeAnalysis: c.resumeAnalysis ?? null,
+          notes: Array.isArray(c.notes) ? c.notes : [],
+          archiveReason: c.archiveReason ?? '',
+          archivedDate: c.archivedDate ?? c.archived_date ?? null,
+        }));
+        setRemoteCandidates(normalized);
+      } catch (err) {
+        console.error('Failed to load candidates', err);
+        setError('Failed to load archived candidates');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [candidates]);
+
+  // Choose data source: props or remote
+  const sourceCandidates = useMemo(() => {
+    return (candidates && candidates.length > 0) ? candidates : remoteCandidates;
+  }, [candidates, remoteCandidates]);
 
   // Filter archived candidates (rejected or drop-off)
-  const archivedCandidates = candidates.filter(c => c.stage === 'rejected' || c.stage === 'drop-off');
+  const archivedCandidates = sourceCandidates.filter(c => c.stage === 'rejected' || c.stage === 'drop-off');
 
   // Get unique roles from archived candidates
   const uniqueRoles = Array.from(new Set(archivedCandidates.map(c => c.position))).sort();
@@ -64,12 +120,30 @@ export function ArchivedCandidates({ candidates, onRestore }: ArchivedCandidates
   };
 
   const handleConfirmRestore = () => {
-    if (candidateToRestore) {
-      onRestore(candidateToRestore.id);
-      setShowRestoreDialog(false);
-      setCandidateToRestore(null);
-      toast.success(`${candidateToRestore.name} has been restored to the pipeline`);
-    }
+    const restore = async () => {
+      if (!candidateToRestore) return;
+      try {
+        // Move back to applied and clear archive metadata
+        await api.put(`/candidates/${candidateToRestore.id}`, {
+          stage: 'applied',
+          archiveReason: '',
+          archivedDate: null,
+        });
+        // Update local state if using remote source
+        setRemoteCandidates(prev => prev.map(c => (
+          c.id === candidateToRestore.id ? { ...c, stage: 'applied', archiveReason: '', archivedDate: null } : c
+        )));
+        onRestore(candidateToRestore.id);
+        toast.success(`${candidateToRestore.name} has been restored to the pipeline`);
+      } catch (err) {
+        console.error('Restore candidate failed', err);
+        toast.error('Failed to restore candidate');
+      } finally {
+        setShowRestoreDialog(false);
+        setCandidateToRestore(null);
+      }
+    };
+    restore();
   };
 
   const getStatusBadge = (stage: string) => {
@@ -214,7 +288,21 @@ export function ArchivedCandidates({ candidates, onRestore }: ArchivedCandidates
                       <TableCell>
                         <div className="flex items-center space-x-3">
                           <Avatar className="w-9 h-9">
-                            <AvatarImage src={candidate.avatar} alt={candidate.name} />
+                            <AvatarImage
+                              src={(() => {
+                                if (!candidate.avatar || candidate.avatar.trim() === '') {
+                                  return `${API_BASE}/upload-file/default_avatar.svg`;
+                                }
+                                if (candidate.avatar.startsWith('http://') || candidate.avatar.startsWith('https://')) {
+                                  return candidate.avatar;
+                                }
+                                const path = candidate.avatar.startsWith('/uploads/')
+                                  ? candidate.avatar.replace('/uploads/', '/upload-file/')
+                                  : candidate.avatar;
+                                return `${API_BASE}${path.startsWith('/') ? '' : '/'}${path}`;
+                              })()}
+                              alt={candidate.name}
+                            />
                             <AvatarFallback>
                               {candidate.name.split(' ').map(n => n[0]).join('')}
                             </AvatarFallback>

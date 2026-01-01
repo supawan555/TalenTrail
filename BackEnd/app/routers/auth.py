@@ -46,11 +46,34 @@ async def auth_register(req: RegisterRequest):
 
 
 @router.post("/login", response_model=LoginResponse)
-async def auth_login(req: LoginRequest):
+async def auth_login(req: LoginRequest, response: Response):
     email = req.email.strip().lower()
     user = auth_users_collection.find_one({"email": email})
     if not user or not verify_password(req.password, user.get("password_hash")):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    
+    # Skip 2FA for ADMIN role: issue access token immediately and set cookie
+    if str(user.get("role", "")).upper() == "ADMIN":
+        access_token_expires = timedelta(minutes=1440)
+        access_token = create_access_token(
+            data={"sub": user["email"], "role": "ADMIN"},
+            expires_delta=access_token_expires,
+        )
+
+        response.set_cookie(
+            key="access_token",
+            value=access_token,
+            httponly=True,
+            max_age=1440 * 60,
+            samesite="lax",
+            secure=False,
+        )
+
+        # No OTP required for admin; return placeholder pendingToken
+        return LoginResponse(otp_required=False, pendingToken="")
+
+    # Default: require OTP flow for non-admin users
     token = create_pending_session(user_id=user["_id"])
     return LoginResponse(otp_required=True, pendingToken=token)
 

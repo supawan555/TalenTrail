@@ -25,7 +25,6 @@ import { Candidate } from '../lib/mock-data';
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ImageWithFallback } from './figma/ImageWithFallback';
 import { AddCandidateModal } from './add-candidate-modal';
 import { 
   AlertDialog,
@@ -37,6 +36,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog';
+import api from '../lib/api';
 
 interface CandidateProfileProps {
   candidate: Candidate;
@@ -98,9 +98,8 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
     let isMounted = true;
     const fetchCandidate = async () => {
       try {
-        const res = await fetch(`${API_BASE}/candidates/${candidate.id}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const fresh: Candidate = await res.json();
+        const res = await api.get(`/candidates/${candidate.id}`);
+        const fresh: Candidate = res.data;
         if (isMounted) setLiveCandidate(fresh);
       } catch (e) {
         // Keep using the provided candidate on failure
@@ -113,13 +112,8 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
 
   const handleEdit = async (updatedCandidate: Candidate) => {
     try {
-      const res = await fetch(`${API_BASE}/candidates/${liveCandidate.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedCandidate),
-      });
-      if (!res.ok) throw new Error(`Update failed (${res.status})`);
-      const saved: Candidate = await res.json();
+      const res = await api.put(`/candidates/${liveCandidate.id}`, updatedCandidate);
+      const saved: Candidate = res.data;
       setLiveCandidate(saved);
       onEdit?.(saved);
     } catch (err) {
@@ -131,8 +125,7 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
 
   const handleDelete = async () => {
     try {
-      const res = await fetch(`${API_BASE}/candidates/${liveCandidate.id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error(`Delete failed (${res.status})`);
+      await api.delete(`/candidates/${liveCandidate.id}`);
       onDelete?.(liveCandidate.id);
       // Ensure navigation even if parent doesn't handle it
       navigate('/candidates', { replace: true });
@@ -149,12 +142,7 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
     const next = currentIndex >= 0 && currentIndex < stageOrder.length - 1 ? stageOrder[currentIndex + 1] : null;
     if (!next) { setShowNextStageDialog(false); return; }
     try {
-      const res = await fetch(`${API_BASE}/candidates/${liveCandidate.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stage: next }),
-      });
-      if (!res.ok) throw new Error(`Stage update failed (${res.status})`);
+      await api.put(`/candidates/${liveCandidate.id}`, { stage: next });
       setLiveCandidate(prev => ({ ...prev, stage: next } as Candidate));
       onNextStage?.(liveCandidate.id);
     } catch (err) {
@@ -179,12 +167,7 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
     const newStage = archiveType === 'reject' ? 'rejected' : 'drop-off';
     try {
       const payload = { stage: newStage, archiveReason, archivedDate: new Date().toISOString().split('T')[0] };
-      const res = await fetch(`${API_BASE}/candidates/${liveCandidate.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error(`Archive failed (${res.status})`);
+      await api.put(`/candidates/${liveCandidate.id}`, payload);
       setLiveCandidate(prev => ({ ...prev, stage: newStage } as Candidate));
       if (archiveType === 'reject') {
         onReject?.(liveCandidate.id, archiveReason);

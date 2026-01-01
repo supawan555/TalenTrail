@@ -10,6 +10,7 @@ import { Mail, Phone, Calendar, Search } from 'lucide-react';
 import { pipelineStages, Candidate } from '../lib/mock-data';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+import api from '../lib/api';
 
 interface PipelineProps {
   onCandidateSelect: (candidate: Candidate) => void;
@@ -30,9 +31,8 @@ export function Pipeline({ onCandidateSelect, candidates: propCandidates }: Pipe
     let cancelled = false;
     const load = async () => {
       try {
-        const res = await fetch(`${API_BASE}/candidates/`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
+        const res = await api.get('/candidates/');
+        const data = res.data;
         if (cancelled) return;
         // Normalize backend payload to Candidate type
         const normalized: Candidate[] = (data || []).map((c: any) => ({
