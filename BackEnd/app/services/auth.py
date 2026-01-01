@@ -21,6 +21,7 @@ SECERT_KEY = settings.SECRET_KEY_AUTHEN
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
+
 def hash_password(pw: str) -> dict:
     salt = os.urandom(16)
     dk = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), salt, _PBKDF_ITER)
@@ -57,6 +58,41 @@ async def Check_Token(token: Annotated[str, Depends(oauth2_scheme)]):
         raise credentials_exception
     
 
+    
+    # user = auth_users_collection.find_one({"email": token_data.email})
+    # if user is None:
+    #     raise credentials_exception
+    # return user
+
+# สร้าง Dependency ใหม่สำหรับอ่าน Cookie
+async def get_current_user_from_cookie(request: Request):
+    token = request.cookies.get("access_token") # <--- อ่านจาก Cookie
+    
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+    )
+    
+    if not token:
+        raise credentials_exception
+
+    try:
+        # แกะ Token
+        payload = jwt.decode(token, SECERT_KEY, algorithms=["HS256"])
+        email: str = payload.get("sub")
+        role: str = payload.get("role") # <--- ดึง Role ออกมาด้วย
+        
+        if email is None:
+            raise credentials_exception
+            
+        # Return dict ง่ายๆ เพื่อเอาไปใช้ต่อ (Stateless)
+        return {"email": email, "role": role}
+        
+    except JWTError: # ใช้ JWTError ของ python-jose
+        raise credentials_exception
+    
+
+# ปรับ require_role ให้ใช้ dependency ตัวใหม่
 def require_role(role: str):
     # เปลี่ยนมาใช้ get_current_user_from_cookie
     async def checker(current_user: dict = Depends(get_current_user_from_cookie)): 
@@ -68,6 +104,9 @@ def require_role(role: str):
         return current_user
     return checker
 
+
+async def get_current_active_user(current_user: RegisterRequest = Depends(Check_Token)):
+    return current_user
 
 def verify_password(pw: str, stored: dict) -> bool:
     try:

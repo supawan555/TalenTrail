@@ -1,6 +1,6 @@
 # 🌟 TalentTrail
 
-A full‑stack recruiting app built with React (Vite) and FastAPI, backed by MongoDB. Manage job descriptions and candidates, upload resumes, run basic analysis, and enable 2FA (TOTP) during sign‑in. kub
+A full‑stack recruiting app built with React (Vite) and FastAPI, backed by MongoDB. Manage job descriptions and candidates, upload resumes, run basic analysis, and enable 2FA (TOTP) during sign‑in.
 
 ---
 
@@ -11,7 +11,7 @@ A full‑stack recruiting app built with React (Vite) and FastAPI, backed by Mon
 - MongoDB (local or remote), default URI: `mongodb://localhost:27017`
 
 Helpful URLs
-- Frontend: [http://localhost:5173](http://localhost:5173)
+- Frontend: [http://localhost:3000](http://localhost:3000)
 - Backend (FastAPI docs): [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ---
@@ -31,7 +31,7 @@ export VITE_API_URL="http://localhost:8000"
 
 # 3) Start the dev server
 npm run dev
-# → Open http://localhost:5173
+# → Open http://localhost:3000
 ```
 
 Windows PowerShell (optional env var)
@@ -41,6 +41,8 @@ $env:VITE_API_URL = "http://localhost:8000"
 
 Notes
 - The app reads `import.meta.env.VITE_API_URL`. If not set, it uses `http://localhost:8000`.
+- Vite dev server runs on port 3000 (see `font-end/vite.config.ts`).
+- Production builds are written to `font-end/build` (custom `outDir`).
 
 ---
 
@@ -99,7 +101,7 @@ npm run dev
 ```
 
 Then open:
-- Frontend: [http://localhost:5173](http://localhost:5173)
+- Frontend: [http://localhost:3000](http://localhost:3000)
 - Backend docs: [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ---
@@ -139,13 +141,26 @@ TalentTrail/
 
 ---
 
+## 🧰 Environments & Build Artifacts
+
+- Frontend build output: `font-end/build` (configured via `outDir` in `vite.config.ts`). You can delete it locally if not used; regenerate with `npm run build`.
+- Python bytecode cache: `__pycache__/` can be safely deleted; Python will recreate it on next run.
+- Tests folder: `BackEnd/tests` is for pytest; delete only if you don’t run tests/CI.
+
+### Python virtual environments
+- Avoid duplicate venvs. Prefer a single environment, e.g. `BackEnd/env`.
+- If you have both `BackEnd/env` and `BackEnd/app/env`, keep one and remove the other after verifying the app runs.
+- Optional: You can also use a workspace‑level `.venv` managed by VS Code; just ensure `pip install -r BackEnd/requirements.txt` is done in the chosen env.
+
+---
+
 ## 💡 Tips
 
 - MongoDB
 	- Default connection: `mongodb://localhost:27017`
 	- Ensure MongoDB is running (as a service or via `mongod`) before the backend.
 - Ports
-	- Frontend (Vite): 5173 by default
+	- Frontend (Vite): 3000 in this repo (customized)
 	- Backend (FastAPI): 8000 by default
 	- If a port is busy, change it (e.g., `--port 8001`).
 - CORS
@@ -178,5 +193,5 @@ TalentTrail/
 
 TalentTrail by @supawan555
 
-- Repo: TalenTrail (master)
+ - Repo: TalentTrail
 - Happy building! If you want a one‑click dev script to start both servers, we can add it next.
