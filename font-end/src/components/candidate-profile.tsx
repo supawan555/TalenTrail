@@ -59,6 +59,40 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
   const [liveCandidate, setLiveCandidate] = useState<Candidate>(candidate);
   const navigate = useNavigate();
 
+  // Ensure notes are always an array for safe rendering
+  const notes = useMemo<any[]>(() => {
+    const raw = (liveCandidate as any)?.notes;
+    return Array.isArray(raw) ? raw : [];
+  }, [liveCandidate]);
+
+  // Normalize note type/tag from backend into display label
+  const normalizeNoteType = (value: unknown): string => {
+    if (!value || typeof value !== 'string') return 'Note';
+    const t = value.trim();
+    const lower = t.toLowerCase();
+    switch (lower) {
+      case 'awaiting feedback':
+      case 'waiting':
+      case 'feedback':
+        return 'Awaiting Feedback';
+      case 'need approval':
+      case 'approval':
+      case 'needs approval':
+        return 'Need Approval';
+      case 'rejected':
+        return 'Rejected';
+      case 'withdrawn':
+      case 'drop-off':
+      case 'dropped':
+        return 'Withdrawn';
+      case 'approved':
+      case 'hire-approved':
+        return 'Approved';
+      default:
+        return t.charAt(0).toUpperCase() + t.slice(1);
+    }
+  };
+
   // Normalize resume URL (support relative paths from backend like /uploads/...)
   const resolvedResumeUrl = useMemo(() => {
     const url = (liveCandidate as any)?.resumeUrl as string | undefined;
@@ -394,7 +428,8 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
             <CardContent>
               <ScrollArea className="h-96">
                 <div className="space-y-4 pr-4">
-                  {liveCandidate.notes.map((note) => {
+                  {notes.map((note, idx) => {
+                    const typeLabel = normalizeNoteType(note.type ?? note.tag ?? note.category);
                     const getTagColor = (type: string) => {
                       switch (type) {
                         case 'Awaiting Feedback': return 'bg-yellow-50 text-yellow-700 border-yellow-200';
@@ -405,28 +440,33 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
                         default: return 'bg-blue-50 text-blue-700 border-blue-200';
                       }
                     };
-                    
+
+                    const key = note.id ?? note._id ?? `${typeLabel}-${note.timestamp ?? idx}`;
+                    const ts = note.timestamp ?? note.created_at ?? note.createdAt;
+                    const content = note.content ?? note.text ?? '';
+                    const author = note.author ?? 'Anonymous';
+
                     return (
-                      <div key={note.id} className="border border-border/40 rounded-lg p-4">
+                      <div key={key} className="border border-border/40 rounded-lg p-4">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="font-medium text-sm">{note.author}</span>
+                          <span className="font-medium text-sm">{author}</span>
                           <div className="flex items-center space-x-2">
-                            <Badge 
-                              variant="outline" 
-                              className={`text-xs ${getTagColor(note.type)}`}
+                            <Badge
+                              variant="outline"
+                              className={`text-xs ${getTagColor(typeLabel)}`}
                             >
-                              {note.type}
+                              {typeLabel}
                             </Badge>
                             <span className="text-xs text-muted-foreground">
-                              {new Date(note.timestamp).toLocaleDateString()}
+                              {ts ? new Date(ts).toLocaleDateString() : ''}
                             </span>
                           </div>
                         </div>
-                        <p className="text-sm">{note.content}</p>
+                        <p className="text-sm">{content}</p>
                       </div>
                     );
                   })}
-                  {liveCandidate.notes.length === 0 && (
+                  {notes.length === 0 && (
                     <p className="text-sm text-muted-foreground text-center py-8">
                       No notes available for this candidate.
                     </p>
