@@ -114,20 +114,25 @@ TalentTrail/
 │  ├─ app/
 │  │  ├─ main.py               # FastAPI app (includes routers)
 │  │  ├─ config.py, db.py      # Settings and Mongo client/collections
-│  │  ├─ routers/              # auth, candidates, jobs, matching, uploads
+│  │  ├─ routers/              # auth, candidates, jobs, matching, uploads, dashboard
+│  │  │  ├─ auth.py
+│  │  │  ├─ candidates.py
+│  │  │  ├─ job_descriptions.py
+│  │  │  ├─ matching.py
+│  │  │  ├─ uploads.py
+│  │  │  └─ dashboard.py       # metrics + analytics endpoints for Dashboard
 │  │  ├─ services/             # auth, job_preload, resume_analysis
 │  │  └─ utils/                # file_storage
-│  ├─ auth.py                  # (legacy) TOTP helpers
-│  ├─ setup_totp.py            # (optional) TOTP dev helper
+│  ├─ auth.py                 
 │  ├─ mock_job_descriptions.json
 │  ├─ requirements.txt
 │  └─ uploads/                 # Saved files (served at /uploads)
-│
 ├─ font-end/                   # React (Vite) app
 │  ├─ src/
 │  │  ├─ components/
-│  │  │  ├─ register.tsx       # Includes OTP provisioning modal
 │  │  │  └─ ui/                # Radix-based UI components
+│  │  ├─ lib/
+│  │  │  └─ api.ts             # Axios client configured for backend
 │  │  ├─ main.tsx, App.tsx, ...
 │  ├─ vite.config.ts
 │  └─ package.json
