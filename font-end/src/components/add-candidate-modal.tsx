@@ -1,3 +1,4 @@
+import { useAuth } from '../context/AuthContext';
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
@@ -32,6 +33,14 @@ interface CandidateFormData {
 }
 
 export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandidateModalProps) {
+  const { user, loading } = useAuth(); 
+
+  // Role-based UI Guard
+  if (loading) return null;
+
+  if (user?.role !== 'hr-recruiter') {
+    return null; // Role อื่น ห้ามใช้ Add Candidate
+  }
   const [roles, setRoles] = useState<string[]>([]);
   const [rolesLoading, setRolesLoading] = useState<boolean>(false);
   const [rolesError, setRolesError] = useState<string | null>(null);
@@ -499,3 +508,4 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
     </Dialog>
   );
 }
+

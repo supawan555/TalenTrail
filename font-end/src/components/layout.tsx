@@ -1,3 +1,5 @@
+import { useAuth } from '../context/AuthContext';
+import { ROLE_NAVIGATION } from '../config/roleNavigation';
 import { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger } from './ui/sidebar';
@@ -20,8 +22,22 @@ const navigationItems: { path: string; label: string; icon: any }[] = [
 
 export function Layout({ children }: LayoutProps) {
   const location = useLocation();
-  const active = navigationItems.find(i => i.path === location.pathname)?.label || 'Dashboard';
+  const { user, loading } = useAuth();
+
+  if (loading) return null;
+
+const allowedPaths = ROLE_NAVIGATION[user?.role ?? 'hr-recruiter'] ?? [];
+
+const visibleNavigationItems = navigationItems.filter(item =>
+  (allowedPaths as readonly string[]).includes(item.path)
+);
+
+  const active =
+    visibleNavigationItems.find(i => i.path === location.pathname)?.label
+    ?? visibleNavigationItems[0]?.label
+    ?? '';
   return (
+
     <SidebarProvider>
       <div className="flex h-screen w-full">
         <Sidebar className="border-r border-border/40">
@@ -34,9 +50,10 @@ export function Layout({ children }: LayoutProps) {
               <SidebarGroupLabel>Navigation</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {navigationItems.map((item) => {
+                  {visibleNavigationItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = location.pathname === item.path;
+
                     return (
                       <SidebarMenuItem key={item.path}>
                         <SidebarMenuButton

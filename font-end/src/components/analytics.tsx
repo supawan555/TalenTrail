@@ -1,3 +1,4 @@
+import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { 
@@ -18,6 +19,14 @@ import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 export function Analytics() {
+  const { user, loading } = useAuth();
+
+  // Role-based UI Guard (Management only)
+  if (loading) return null;
+
+  if (user?.role !== 'management') {
+    return null; // Role อื่นห้ามเห็น Analytics
+  }
   const conversionFunnelData = [
     { stage: 'Applications', count: 245, percentage: 100, fill: '#3b82f6' }, // Blue
     { stage: 'Screening', count: 147, percentage: 60, fill: '#eab308' }, // Yellow

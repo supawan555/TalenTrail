@@ -1,3 +1,4 @@
+import { useAuth } from '../context/AuthContext';
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -17,6 +18,14 @@ import { toast } from 'sonner';
 const DEPARTMENTS = ['Engineering', 'Design', 'Product', 'Marketing', 'Sales', 'Operations'];
 
 export function JobDescriptions() {
+    const { user, loading } = useAuth();
+
+  // Role-based UI Guard (Hiring Manager only)
+  if (loading) return null;
+
+  if (user?.role !== 'hiring-manager') {
+    return null; // Role อื่นห้ามเห็น Job Descriptions
+  }
   const [jobDescriptions, setJobDescriptions] = useState<JobDescription[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');

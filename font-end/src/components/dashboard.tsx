@@ -19,7 +19,14 @@ const STAGE_COLORS = {
 const STAGES = ['applied', 'screening', 'interview', 'final', 'hired'] as const;
 
 export function Dashboard() {
-  const { user } = useAuth(); // <--- 2. ดึงข้อมูล User มาใช้
+  const { user, loading } = useAuth();// <--- 2. ดึงข้อมูล User มาใช้
+
+  // Role-based UI Guard (Management only)
+  if (loading) return null;
+
+  if (user?.role !== 'management') {
+    return null; // Role อื่น ห้ามเห็น Dashboard
+  } 
 
   // Filter out archived candidates
   const activeCandidates = mockCandidates.filter(c => c.stage !== 'rejected' && c.stage !== 'drop-off');

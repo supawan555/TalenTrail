@@ -1,3 +1,4 @@
+import { useAuth } from '../context/AuthContext';
 import { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
@@ -40,6 +41,13 @@ const allNotes = activeCandidates.flatMap(candidate =>
 );
 
 export function Notes() {
+  const { user, loading } = useAuth();
+
+  if (loading) return null;
+
+  if (!user || !['hr-recruiter', 'hiring-manager'].includes(user.role)) {
+    return null; 
+  }
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [newNote, setNewNote] = useState('');

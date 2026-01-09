@@ -11,7 +11,7 @@ import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
 import { Archive, Search, Eye, RotateCcw, Mail, Phone, MapPin, Calendar, Briefcase, Award } from 'lucide-react';
 import { Candidate, mockCandidates } from '../lib/mock-data';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 interface ArchivedCandidatesProps {
   candidates: Candidate[];

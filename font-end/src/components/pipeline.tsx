@@ -1,3 +1,5 @@
+import { useAuth } from '../context/AuthContext';
+
 import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -17,6 +19,14 @@ interface PipelineProps {
 }
 
 export function Pipeline({ onCandidateSelect, candidates: propCandidates }: PipelineProps) {
+    const { user, loading } = useAuth();
+
+  if (loading) return null;
+
+  if (user?.role !== 'hr-recruiter') {
+    return null; 
+  }
+
   const [searchQuery, setSearchQuery] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [allCandidates, setAllCandidates] = useState<Candidate[]>(propCandidates || []);
