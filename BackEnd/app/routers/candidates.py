@@ -17,6 +17,7 @@ import re
 from ..services.auth import get_current_user_from_cookie, require_role
 from app.db import candidate_collection
 from app.db import job_collection
+from app.db import candidate_notes_collection
 from app.utils.file_storage import save_upload_file, unique_name, UPLOAD_DIR
 from app.ml.resume_extractor import extract_resume_text, extract_resume_data as ml_extract_data
 from app.ml.resume_matcher import match_resume_to_job
@@ -97,8 +98,21 @@ async def create_candidate(
         # Never trust client-sent matchScore; always recompute server-side
         if "matchScore" in payload:
             payload.pop("matchScore", None)
-        payload.setdefault("created_at", datetime.utcnow().isoformat())
+        now_utc = datetime.utcnow()
+        payload.setdefault("created_at", now_utc.isoformat())
         payload.setdefault("status", "active")
+        # --- Dashboard state tracking (server-side override) ---
+        # Always inject these values; do not trust/keep client values
+        payload["applied_at"] = now_utc  # datetime for Mongo date ops
+        payload["current_state"] = "applied"
+        payload["hired_at"] = None
+        payload["rejected_at"] = None
+        payload["dropped_at"] = None
+        payload["state_history"] = [{
+            "state": "applied",
+            "entered_at": now_utc,
+            "exited_at": None,
+        }]
         # Normalize resume url field name for consistency
         if "resumeUrl" in payload and "resume_url" not in payload:
             payload["resume_url"] = payload.get("resumeUrl")
@@ -200,6 +214,7 @@ async def create_candidate(
     if not name or not email:
         raise HTTPException(status_code=400, detail="name and email are required")
 
+    now_utc = datetime.utcnow()
     doc = {
         "name": name,
         "email": email,
@@ -211,9 +226,22 @@ async def create_candidate(
         "avatar": avatar_url,
         "resume_path": resume_path,
         "resume_url": public_url,
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": now_utc.isoformat(),
         "status": "active",
     }
+
+    # --- Dashboard state tracking (server-side override) ---
+    # Always inject these values on create; ignore client-provided ones
+    doc["applied_at"] = now_utc  # datetime for Mongo date ops
+    doc["current_state"] = "applied"
+    doc["hired_at"] = None
+    doc["rejected_at"] = None
+    doc["dropped_at"] = None
+    doc["state_history"] = [{
+        "state": "applied",
+        "entered_at": now_utc,
+        "exited_at": None,
+    }]
 
     # Run ML extraction & matching if we have a resume and position (multipart form path)
     try:
@@ -318,6 +346,18 @@ async def get_candidate(candidate_id: str):
     doc = candidate_collection.find_one({"_id": oid})
     if not doc:
         raise HTTPException(status_code=404, detail="Candidate not found")
+    # Attach notes from candidate_notes collection
+    notes = []
+    for n in candidate_notes_collection.find({"candidate_id": oid}).sort("timestamp", -1):
+        note = {
+            "id": str(n.get("_id")),
+            "author": str(n.get("author", "")),
+            "content": str(n.get("content", "")),
+            "timestamp": (n.get("timestamp") or datetime.utcnow()).isoformat(),
+            "type": str(n.get("type", "")),
+        }
+        notes.append(note)
+    doc["notes"] = notes
     doc["id"] = str(doc.pop("_id"))
     return doc
 

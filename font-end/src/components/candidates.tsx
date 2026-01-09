@@ -24,8 +24,7 @@ import { AddCandidateModal } from './add-candidate-modal';
 import { Candidate } from '../lib/mock-data';
 import { toast } from 'sonner'; // เพิ่ม Toast เพื่อแจ้งเตือน
 
-// ใช้สำหรับแสดงรูปภาพ (ยังต้องใช้ URL string อยู่)
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+const API_BASE = 'http://localhost:8000';
 
 interface CandidatesProps {
   onCandidateSelect: (candidate: Candidate) => void;

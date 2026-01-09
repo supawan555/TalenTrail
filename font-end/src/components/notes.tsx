@@ -18,7 +18,25 @@ import {
   User,
   Tag
 } from 'lucide-react';
-import { mockCandidates, Note } from '../lib/mock-data';
+import api from '../lib/api';
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+
+// Normalize avatar URL; if missing, return undefined to use initials fallback
+const normalizeAvatarSrc = (url?: string): string | undefined => {
+  if (!url || url.trim() === '') {
+    return undefined;
+  }
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  if (url.startsWith('/uploads/')) {
+    return `${API_BASE}${url.replace('/uploads/', '/upload-file/')}`;
+  }
+  if (url.startsWith('/upload-file/')) {
+    return `${API_BASE}${url}`;
+  }
+  return `${API_BASE}/${url}`;
+};
 
 const DEFAULT_TAGS = [
   "Awaiting Feedback",
@@ -28,17 +46,22 @@ const DEFAULT_TAGS = [
   "Approved"
 ];
 
-// Collect all notes from all candidates (exclude archived)
-const activeCandidates = mockCandidates.filter(c => c.stage !== 'rejected' && c.stage !== 'drop-off');
-const allNotes = activeCandidates.flatMap(candidate => 
-  candidate.notes.map(note => ({
-    ...note,
-    candidateName: candidate.name,
-    candidateId: candidate.id,
-    candidatePosition: candidate.position,
-    candidateAvatar: candidate.avatar
-  }))
-);
+export interface NoteOut {
+  id: string;
+  author: string;
+  content: string;
+  timestamp: string;
+  type: string;
+  candidate_id: string;
+}
+
+export interface CandidateLite {
+  id: string;
+  name: string;
+  position?: string;
+  avatar?: string;
+  stage?: string;
+}
 
 export function Notes() {
   const { user, loading } = useAuth();
@@ -55,22 +78,68 @@ export function Notes() {
   const [noteTag, setNoteTag] = useState('');
   const [customTag, setCustomTag] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
+  const [candidates, setCandidates] = useState<CandidateLite[]>([]);
+  const [allNotes, setAllNotes] = useState<Array<NoteOut & { candidateName?: string; candidatePosition?: string; candidateAvatar?: string }>>([]);
+
+  // Load candidates and notes from backend
+  useEffect(() => {
+    let ignore = false;
+    const load = async () => {
+      try {
+        const [candRes, notesRes] = await Promise.all([
+          api.get('/candidates'),
+          api.get('/notes'),
+        ]);
+        if (!ignore) {
+          const candList: CandidateLite[] = Array.isArray(candRes.data) ? candRes.data.map((c: any) => ({ id: c.id, name: c.name, position: c.position, avatar: c.avatar, stage: c.stage || c.current_state })) : [];
+          setCandidates(candList);
+          const notes: NoteOut[] = Array.isArray(notesRes.data) ? notesRes.data : [];
+          // Map notes with candidate info for display
+          const notesWithCand = notes.map((n) => {
+            const cand = candList.find(c => c.id === n.candidate_id);
+            return {
+              ...n,
+              candidateName: cand?.name,
+              candidatePosition: cand?.position,
+              candidateAvatar: cand?.avatar,
+            };
+          });
+          setAllNotes(notesWithCand);
+        }
+      } catch (e) {
+        console.error('Failed to load notes/candidates', e);
+      }
+    };
+    load();
+    return () => { ignore = true; };
+  }, []);
 
   const filteredNotes = allNotes.filter(note => {
     const matchesSearch = note.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         note.candidateName.toLowerCase().includes(searchQuery.toLowerCase());
+                         (note.candidateName || '').toLowerCase().includes(searchQuery.toLowerCase());
     const matchesType = typeFilter === 'all' || note.type === typeFilter;
     return matchesSearch && matchesType;
   });
 
-  const handleAddNote = () => {
-    if (newNote.trim() && selectedCandidate) {
-      // In a real app, this would create a new note
+  const handleAddNote = async () => {
+    if (!newNote.trim() || !selectedCandidate || !finalTag.trim()) return;
+    try {
+      const res = await api.post('/notes', null, { params: { candidate_id: selectedCandidate, content: newNote.trim(), type: finalTag } });
+      const added: NoteOut = res.data;
+      const cand = candidates.find(c => c.id === added.candidate_id);
+      setAllNotes(prev => [{
+        ...added,
+        candidateName: cand?.name,
+        candidatePosition: cand?.position,
+        candidateAvatar: cand?.avatar,
+      }, ...prev]);
       setNewNote('');
       setSelectedCandidate('');
       setNoteTag('');
       setCustomTag('');
       setShowCustomInput(false);
+    } catch (e) {
+      console.error('Failed to add note', e);
     }
   };
 
@@ -132,11 +201,11 @@ export function Notes() {
                     <SelectValue placeholder="Select candidate..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {mockCandidates.map((candidate) => (
+                    {candidates.map((candidate) => (
                       <SelectItem key={candidate.id} value={candidate.id}>
                         <div className="flex items-center space-x-2">
                           <Avatar className="w-6 h-6">
-                            <AvatarImage src={candidate.avatar} alt={candidate.name} />
+                            <AvatarImage src={normalizeAvatarSrc(candidate.avatar)} alt={candidate.name} />
                             <AvatarFallback className="text-xs">
                               {candidate.name.split(' ').map(n => n[0]).join('')}
                             </AvatarFallback>
@@ -247,9 +316,9 @@ export function Notes() {
                   <CardContent className="pt-6">
                     <div className="flex items-start space-x-4">
                       <Avatar className="w-10 h-10">
-                        <AvatarImage src={note.candidateAvatar} alt={note.candidateName} />
+                        <AvatarImage src={normalizeAvatarSrc(note.candidateAvatar)} alt={note.candidateName} />
                         <AvatarFallback>
-                          {note.candidateName.split(' ').map(n => n[0]).join('')}
+                          {(note.candidateName || '').split(' ').map(n => n[0]).join('')}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 space-y-3">
