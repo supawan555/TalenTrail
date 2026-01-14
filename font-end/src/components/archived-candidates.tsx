@@ -9,7 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
-import { Archive, Search, Eye, RotateCcw, Mail, Phone, MapPin, Calendar, Briefcase, Award } from 'lucide-react';
+import { Archive, Search, Eye, RotateCcw, Mail, Phone, Calendar, Briefcase } from 'lucide-react';
 import { Candidate } from '../lib/mock-data';
 import { toast } from 'sonner';
 import api from '../lib/api';
@@ -131,7 +131,7 @@ export function ArchivedCandidates({ candidates, onRestore }: ArchivedCandidates
         });
         // Update local state if using remote source
         setRemoteCandidates(prev => prev.map(c => (
-          c.id === candidateToRestore.id ? { ...c, stage: 'applied', archiveReason: '', archivedDate: null } : c
+          c.id === candidateToRestore.id ? { ...c, stage: 'applied', archiveReason: '', archivedDate: undefined } : c
         )));
         onRestore(candidateToRestore.id);
         toast.success(`${candidateToRestore.name} has been restored to the pipeline`);
@@ -432,10 +432,6 @@ export function ArchivedCandidates({ candidates, onRestore }: ArchivedCandidates
                       <Phone className="w-4 h-4 text-muted-foreground" />
                       <span>{selectedCandidate.phone}</span>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <MapPin className="w-4 h-4 text-muted-foreground" />
-                      <span>{selectedCandidate.location}</span>
-                    </div>
                   </div>
                 </div>
 
@@ -445,10 +441,6 @@ export function ArchivedCandidates({ candidates, onRestore }: ArchivedCandidates
                     <div className="flex items-center space-x-2">
                       <Briefcase className="w-4 h-4 text-muted-foreground" />
                       <span>{selectedCandidate.department}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Award className="w-4 h-4 text-muted-foreground" />
-                      <span>{selectedCandidate.experience} experience</span>
                     </div>
                     <div className="flex items-center space-x-2">
                       <Calendar className="w-4 h-4 text-muted-foreground" />
