@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "outputDirectory": "font-end/dist",
   "builds": [
     {
       "src": "font-end/package.json",
@@ -26,7 +27,7 @@
     },
     {
       "src": "(.*)",
-      "dest": "font-end/dist$1"
+      "dest": "font-end/dist/$1"
     }
   ]
 }
