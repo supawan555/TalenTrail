@@ -23,11 +23,11 @@ export function Analytics() {
   // Role-based UI Guard (Management only)
   if (loading) return null;
 
-  if (user?.role !== 'management') {
-    return null; // Role อื่นห้ามเห็น Analytics
+  if (!user || !['management','ADMIN'].includes(user.role)) {
+    return null; 
   }
   const conversionFunnelData = [
-    { stage: 'Applications', count: 245, percentage: 100, fill: '#3b82f6' }, // Blue
+    { stage: 'Applied', count: 245, percentage: 100, fill: '#3b82f6' }, // Blue
     { stage: 'Screening', count: 147, percentage: 60, fill: '#eab308' }, // Yellow
     { stage: 'Interview', count: 89, percentage: 36, fill: '#8b5cf6' }, // Purple
     { stage: 'Final Round', count: 34, percentage: 14, fill: '#f59e0b' }, // Orange

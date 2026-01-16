@@ -1,5 +1,5 @@
 import { useAuth } from '../context/AuthContext';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -7,8 +7,17 @@ import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Separator } from './ui/separator';
 import { ScrollArea } from './ui/scroll-area';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 import { 
   MessageSquare, 
   Plus, 
@@ -16,9 +25,10 @@ import {
   Filter, 
   Calendar,
   User,
-  Tag
+  Trash2
 } from 'lucide-react';
 import api from '../lib/api';
+import { toast } from 'sonner';
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
 // Normalize avatar URL; if missing, return undefined to use initials fallback
@@ -42,7 +52,7 @@ const DEFAULT_TAGS = [
   "Awaiting Feedback",
   "Need Approval",
   "Rejected",
-  "Withdrawn",
+  "Drop-off",
   "Approved"
 ];
 
@@ -63,12 +73,14 @@ export interface CandidateLite {
   stage?: string;
 }
 
+type NoteWithCandidate = NoteOut & { candidateName?: string; candidatePosition?: string; candidateAvatar?: string };
+
 export function Notes() {
   const { user, loading } = useAuth();
 
   if (loading) return null;
 
-  if (!user || !['hr-recruiter', 'hiring-manager'].includes(user.role)) {
+  if (!user || !['hr-recruiter', 'hiring-manager', 'ADMIN'].includes(user.role)) {
     return null; 
   }
   const [searchQuery, setSearchQuery] = useState('');
@@ -79,7 +91,11 @@ export function Notes() {
   const [customTag, setCustomTag] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [candidates, setCandidates] = useState<CandidateLite[]>([]);
-  const [allNotes, setAllNotes] = useState<Array<NoteOut & { candidateName?: string; candidatePosition?: string; candidateAvatar?: string }>>([]);
+  const [allNotes, setAllNotes] = useState<NoteWithCandidate[]>([]);
+  const [notePendingDelete, setNotePendingDelete] = useState<NoteWithCandidate | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Load candidates and notes from backend
   useEffect(() => {
@@ -120,6 +136,50 @@ export function Notes() {
     const matchesType = typeFilter === 'all' || note.type === typeFilter;
     return matchesSearch && matchesType;
   });
+
+  const canDeleteNote = (note: NoteWithCandidate) => {
+    if (!user) return false;
+    const normalizedRole = (user.role || '').toLowerCase();
+    const isAdmin = normalizedRole === 'admin';
+    const normalizedAuthor = (note.author || '').toLowerCase();
+    const normalizedEmail = (user.email || '').toLowerCase();
+    const isOwner = normalizedAuthor !== '' && normalizedAuthor === normalizedEmail;
+    return isAdmin || isOwner;
+  };
+
+  const handleDeleteDialogChange = (open: boolean) => {
+    if (deletingNoteId) return;
+    setDeleteDialogOpen(open);
+    if (!open) {
+      setNotePendingDelete(null);
+      setDeleteError(null);
+    }
+  };
+
+  const openDeleteDialog = (note: NoteWithCandidate) => {
+    setNotePendingDelete(note);
+    setDeleteDialogOpen(true);
+    setDeleteError(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!notePendingDelete) return;
+    setDeletingNoteId(notePendingDelete.id);
+    setDeleteError(null);
+    try {
+      await api.delete(`/notes/${notePendingDelete.id}`);
+      setAllNotes(prev => prev.filter(n => n.id !== notePendingDelete.id));
+      toast.success('Note deleted successfully');
+      setDeleteDialogOpen(false);
+      setNotePendingDelete(null);
+    } catch (error) {
+      const message = (error as any)?.response?.data?.detail || (error as any)?.response?.data?.message || 'Failed to delete note';
+      setDeleteError(message);
+      toast.error(message);
+    } finally {
+      setDeletingNoteId(null);
+    }
+  };
 
   const handleAddNote = async () => {
     if (!newNote.trim() || !selectedCandidate || !finalTag.trim()) return;
@@ -322,7 +382,7 @@ export function Notes() {
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 space-y-3">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-start justify-between gap-3">
                           <div>
                             <h4 className="font-medium">{note.candidateName}</h4>
                             <p className="text-sm text-muted-foreground">{note.candidatePosition}</p>
@@ -334,6 +394,17 @@ export function Notes() {
                             <span className="text-xs text-muted-foreground">
                               {new Date(note.timestamp).toLocaleDateString()}
                             </span>
+                            {canDeleteNote(note) && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                onClick={() => openDeleteDialog(note)}
+                                aria-label="Delete note"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
                         </div>
                         
@@ -370,6 +441,30 @@ export function Notes() {
           </ScrollArea>
         </div>
       </div>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={handleDeleteDialogChange}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete note?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this note? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteError && (
+            <p className="text-sm text-destructive">{deleteError}</p>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!deletingNoteId}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              disabled={!!deletingNoteId}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deletingNoteId ? 'Deleting...' : 'Delete Note'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

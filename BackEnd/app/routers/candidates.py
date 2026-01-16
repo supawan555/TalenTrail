@@ -369,6 +369,10 @@ async def update_candidate(candidate_id: str, request: Request):
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid candidate id")
 
+    existing = candidate_collection.find_one({"_id": oid})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
     try:
         payload = await request.json()
         if not isinstance(payload, dict):
@@ -382,8 +386,54 @@ async def update_candidate(candidate_id: str, request: Request):
         payload["resume_url"] = payload.pop("resumeUrl")
     if "archivedDate" in payload and "archived_date" not in payload:
         payload["archived_date"] = payload.get("archivedDate")
-    # Update timestamp
-    payload["updated_at"] = datetime.utcnow().isoformat()
+
+    now_dt = datetime.utcnow()
+    payload["updated_at"] = now_dt.isoformat()
+
+    incoming_stage = payload.get("stage") or payload.get("current_state")
+    normalized_stage = None
+    if isinstance(incoming_stage, str):
+        normalized_stage = incoming_stage.strip().lower()
+        payload["stage"] = normalized_stage
+    elif incoming_stage is not None:
+        normalized_stage = incoming_stage
+
+    previous_stage = existing.get("stage") or existing.get("current_state")
+    prev_stage_norm = previous_stage.strip().lower() if isinstance(previous_stage, str) else previous_stage
+
+    if normalized_stage:
+        payload["current_state"] = normalized_stage
+
+    if normalized_stage and normalized_stage != prev_stage_norm:
+        history = existing.get("state_history") or []
+        updated_history = []
+        closed_prev = False
+        for entry in history:
+            entry_copy = dict(entry)
+            entry_state = entry_copy.get("state")
+            entry_state_norm = entry_state.strip().lower() if isinstance(entry_state, str) else entry_state
+            exited_at = entry_copy.get("exited_at")
+            is_open = exited_at is None or (isinstance(exited_at, str) and exited_at.strip().lower() in {"", "none"})
+            if (not closed_prev) and entry_state_norm == prev_stage_norm and is_open:
+                entry_copy["exited_at"] = now_dt
+                closed_prev = True
+            updated_history.append(entry_copy)
+        updated_history.append({"state": normalized_stage, "entered_at": now_dt, "exited_at": None})
+        payload["state_history"] = updated_history
+
+        if normalized_stage == "hired":
+            payload["hired_at"] = now_dt
+            payload["rejected_at"] = None
+            payload["dropped_at"] = None
+            payload["status"] = "hired"
+        elif normalized_stage == "rejected":
+            payload["rejected_at"] = now_dt
+            payload["status"] = "inactive"
+        elif normalized_stage in {"drop-off", "dropoff", "dropped"}:
+            payload["dropped_at"] = now_dt
+            payload["status"] = "inactive"
+        else:
+            payload.setdefault("status", existing.get("status", "active"))
 
     res = candidate_collection.update_one({"_id": oid}, {"$set": payload})
     if res.matched_count == 0:

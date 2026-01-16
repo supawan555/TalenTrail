@@ -84,3 +84,25 @@ async def create_note(candidate_id: str, content: str, type: str, current_user: 
     res = candidate_notes_collection.insert_one(doc)
     doc_out = {**doc, "_id": res.inserted_id}
     return _to_out(doc_out)
+
+
+@router.delete("/{note_id}")
+async def delete_note(note_id: str, current_user: dict = Depends(get_current_user_from_cookie)) -> dict:
+    try:
+        oid = ObjectId(note_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid note id")
+
+    existing = candidate_notes_collection.find_one({"_id": oid})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Note not found")
+
+    user_email = (current_user.get("email") or "").lower()
+    user_role = (current_user.get("role") or "").lower()
+    note_author = (existing.get("author") or "").lower()
+
+    if user_role != "admin" and (not user_email or user_email != note_author):
+        raise HTTPException(status_code=403, detail="You are not allowed to delete this note")
+
+    candidate_notes_collection.delete_one({"_id": oid})
+    return {"deleted": True}
