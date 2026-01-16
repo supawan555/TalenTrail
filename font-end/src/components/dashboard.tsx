@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Progress } from './ui/progress';
-import { Button } from './ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Users, Briefcase, AlertTriangle, TrendingUp, Clock, Target, TrendingDown, Pause, Play } from 'lucide-react';
+import { Users, Briefcase, AlertTriangle, TrendingUp, Clock, Target, TrendingDown } from 'lucide-react';
 import api from '../lib/api';
 
 const STAGE_COLORS = {
@@ -16,7 +16,75 @@ const STAGE_COLORS = {
   hired: { bg: '#E8F5E9', text: '#43A047', name: 'Hired' }
 };
 
-const STAGES = ['applied', 'screening', 'interview', 'final', 'hired'] as const;
+type StageKey = keyof typeof STAGE_COLORS;
+type StageDelay = {
+  stage: StageKey;
+  averageDays: number;
+  sampleSize: number;
+};
+
+const BOTTLENECK_STAGES: StageKey[] = ['applied', 'screening', 'interview', 'final'];
+
+const parseDateValue = (value: unknown): Date | null => {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  const date = new Date(value as string);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const diffInDays = (end: Date, start: Date) => {
+  const ms = end.getTime() - start.getTime();
+  return Math.max(0, Math.round(ms / (1000 * 60 * 60 * 24)));
+};
+
+const isSameMonth = (date: Date, year: number, month: number) =>
+  date.getFullYear() === year && date.getMonth() === month;
+
+const normalizeStage = (value: unknown): StageKey | null => {
+  if (!value) return null;
+  const stage = String(value).toLowerCase();
+  if (stage.includes('screen')) return 'screening';
+  if (stage.includes('interview')) return 'interview';
+  if (stage.includes('final') || stage.includes('offer')) return 'final';
+  if (stage.includes('hire')) return 'hired';
+  if (stage.includes('applied') || stage === 'applied') return 'applied';
+  if (stage === 'screening') return 'screening';
+  if (stage === 'final') return 'final';
+  if (stage === 'interview') return 'interview';
+  if (stage === 'hired') return 'hired';
+  return null;
+};
+
+const getCandidateCreatedDate = (candidate: any) =>
+  parseDateValue(
+    candidate?.created_at ??
+    candidate?.createdAt ??
+    candidate?.applied_at ??
+    candidate?.appliedAt ??
+    candidate?.appliedDate
+  );
+
+const getCandidateHiredDate = (candidate: any) =>
+  parseDateValue(
+    candidate?.hired_at ??
+    candidate?.hiredAt ??
+    candidate?.hiredDate ??
+    candidate?.hireDate
+  );
+
+const getStageEnteredDate = (candidate: any) =>
+  parseDateValue(
+    candidate?.stage_entered_at ??
+    candidate?.stageEnteredAt ??
+    candidate?.updated_at ??
+    candidate?.updatedAt ??
+    candidate?.created_at ??
+    candidate?.createdAt
+  );
+
+const formatDaysLabel = (value?: number | null) => `${Math.max(0, Math.round(value ?? 0))} days`;
+
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
 type DashboardMetrics = {
   bottleneck: { state: string | null; avg_days: number };
@@ -33,27 +101,165 @@ export function Dashboard() {
   const [candidates, setCandidates] = useState<any[]>([]);
   const [applicationsByMonth, setApplicationsByMonth] = useState<Array<{ month: string; applications: number; hires: number }>>([]);
   const [jobsCount, setJobsCount] = useState<number>(0);
+  const [currentStageIndex, setCurrentStageIndex] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
+
+  const monthlyCandidateStats = useMemo(() => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+    const lastMonthDate = new Date(currentYear, currentMonth - 1, 1);
+    const lastMonth = lastMonthDate.getMonth();
+    const lastYear = lastMonthDate.getFullYear();
+
+    let currentMonthCount = 0;
+    let lastMonthCount = 0;
+    let hiredThisMonthCount = 0;
+
+    candidates.forEach((candidate) => {
+      const createdDate = getCandidateCreatedDate(candidate);
+      if (createdDate) {
+        if (isSameMonth(createdDate, currentYear, currentMonth)) {
+          currentMonthCount += 1;
+        } else if (isSameMonth(createdDate, lastYear, lastMonth)) {
+          lastMonthCount += 1;
+        }
+      }
+
+      const stage = normalizeStage(candidate?.current_state ?? candidate?.stage ?? candidate?.status);
+      if (stage === 'hired') {
+        const hiredDate = getCandidateHiredDate(candidate);
+        if (hiredDate && isSameMonth(hiredDate, currentYear, currentMonth)) {
+          hiredThisMonthCount += 1;
+        }
+      }
+    });
+
+    let candidateTrendValue: number | null = null;
+    let candidateTrendLabel: string | undefined;
+
+    if (lastMonthCount > 0) {
+      candidateTrendValue = ((currentMonthCount - lastMonthCount) / lastMonthCount) * 100;
+    } else if (currentMonthCount > 0) {
+      candidateTrendLabel = 'No data from last month';
+    } else {
+      candidateTrendLabel = 'Awaiting new candidates';
+    }
+
+    return {
+      currentMonthCandidateCount: currentMonthCount,
+      candidateTrendValue,
+      candidateTrendLabel,
+      hiredThisMonthCount,
+    };
+  }, [candidates]);
+
+  const {
+    currentMonthCandidateCount,
+    candidateTrendValue,
+    candidateTrendLabel,
+    hiredThisMonthCount,
+  } = monthlyCandidateStats;
+
+  const stageDelays = useMemo<StageDelay[]>(() => {
+    const durationMap = Object.keys(STAGE_COLORS).reduce((acc, key) => {
+      acc[key as StageKey] = [] as number[];
+      return acc;
+    }, {} as Record<StageKey, number[]>);
+
+    candidates.forEach((candidate) => {
+      const history = candidate?.state_history ?? candidate?.stateHistory;
+      if (Array.isArray(history) && history.length > 0) {
+        history.forEach((entry: any) => {
+          const stageKey = normalizeStage(entry?.state);
+          if (!stageKey || !durationMap[stageKey]) return;
+          const enteredAt = parseDateValue(entry?.entered_at ?? entry?.enteredAt);
+          if (!enteredAt) return;
+          const exitedAt = parseDateValue(entry?.exited_at ?? entry?.exitedAt) ?? new Date();
+          durationMap[stageKey].push(diffInDays(exitedAt, enteredAt));
+        });
+        return;
+      }
+
+      const stageKey = normalizeStage(candidate?.current_state ?? candidate?.stage);
+      if (!stageKey || !durationMap[stageKey]) return;
+      const enteredAt = getStageEnteredDate(candidate);
+      if (!enteredAt) return;
+      durationMap[stageKey].push(diffInDays(new Date(), enteredAt));
+    });
+
+    return BOTTLENECK_STAGES.map((stage) => {
+      const samples = durationMap[stage] ?? [];
+      if (!samples.length) {
+        return { stage, averageDays: 0, sampleSize: 0 };
+      }
+      const total = samples.reduce((sum, value) => sum + value, 0);
+      return {
+        stage,
+        averageDays: Math.round(total / samples.length),
+        sampleSize: samples.length,
+      };
+    });
+  }, [candidates]);
+
+  const defaultStage: StageDelay = { stage: BOTTLENECK_STAGES[0], averageDays: 0, sampleSize: 0 };
+
+  useEffect(() => {
+    if (isHovered || stageDelays.length === 0) return;
+
+    const interval = setInterval(() => {
+      setCurrentStageIndex((prev) => (stageDelays.length ? (prev + 1) % stageDelays.length : 0));
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [isHovered, stageDelays.length]);
+
+  useEffect(() => {
+    if (currentStageIndex >= stageDelays.length) {
+      setCurrentStageIndex(0);
+    }
+  }, [currentStageIndex, stageDelays.length]);
+
+  const currentStageData = stageDelays[currentStageIndex] ?? stageDelays[0] ?? defaultStage;
+  const currentStageKey = currentStageData?.stage ?? defaultStage.stage;
+  const currentStageColor = STAGE_COLORS[currentStageKey];
+  const currentBottleneck = currentStageData?.averageDays ?? 0;
+  const bottleneckReason = currentBottleneck > 0 ? 'Potential Delay' : 'On Track';
+  const stageSampleLabel = currentStageData?.sampleSize
+    ? `Based on ${currentStageData.sampleSize} candidate${currentStageData.sampleSize === 1 ? '' : 's'}`
+    : 'Awaiting candidates in this stage';
 
   const activeCandidates = candidates.filter((c) => {
     const stage = c.current_state || c.stage || 'applied';
     return stage !== 'rejected' && stage !== 'dropped' && stage !== 'drop-off' && stage !== 'hired';
   });
   const recentCandidates = candidates.slice(0, 5);
-  
-  const [currentStageIndex, setCurrentStageIndex] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
 
-  // Auto-rotate through stages
-  useEffect(() => {
-    if (isPaused || isHovered) return;
+  const resolveAvatarUrl = (candidate: any) => {
+    const rawAvatar = candidate?.avatar
+      || candidate?.profile_picture
+      || candidate?.profilePicture
+      || candidate?.photo
+      || candidate?.photo_url
+      || candidate?.photoUrl
+      || candidate?.image
+      || candidate?.image_url
+      || candidate?.imageUrl;
 
-    const interval = setInterval(() => {
-      setCurrentStageIndex((prev: number) => (prev + 1) % STAGES.length);
-    }, 4000);
+    if (!rawAvatar) {
+      return `${API_BASE}/upload-file/default_avatar.svg`;
+    }
 
-    return () => clearInterval(interval);
-  }, [isPaused, isHovered]);
+    if (typeof rawAvatar === 'string' && rawAvatar.startsWith('http')) {
+      return rawAvatar;
+    }
+
+    const ensureLeadingSlash = (path: string) => (path.startsWith('/') ? path : `/${path}`);
+    const sanitized = ensureLeadingSlash(String(rawAvatar).trim().replace(/^\/+/, ''));
+    const normalizedPath = sanitized.replace(/^\/uploads\//, '/upload-file/');
+
+    return `${API_BASE}${normalizedPath}`;
+  };
 
   // Fetch data from backend
   useEffect(() => {
@@ -80,39 +286,56 @@ export function Dashboard() {
     return () => { ignore = true; };
   }, []);
 
-  // Get current stage data
-  const currentStage = metrics?.bottleneck?.state || 'applied';
-  const currentStageColor = STAGE_COLORS[currentStage as keyof typeof STAGE_COLORS] || STAGE_COLORS['applied'];
-  const currentBottleneck = metrics?.bottleneck?.avg_days || 0;
-  const bottleneckReason = currentBottleneck > 0 ? 'Potential Delay' : 'On Track';
-
-  const MetricCard = ({ title, value, description, icon: Icon, trend }: {
+  const MetricCard = ({ title, value, description, icon: Icon, trendValue, trendLabel }: {
     title: string;
     value: string | number;
     description: string;
     icon: any;
-    trend?: string;
-  }) => (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-        <p className="text-xs text-muted-foreground">{description}</p>
-        {trend && (
-          <div className="flex items-center pt-1">
-            <TrendingUp className="h-3 w-3 text-green-500 mr-1" />
-            <span className="text-xs text-green-600">{trend}</span>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
+    trendValue?: number | null;
+    trendLabel?: string;
+  }) => {
+    const hasTrendValue = typeof trendValue === 'number' && !Number.isNaN(trendValue);
+    const trendDirection = hasTrendValue ? (trendValue! > 0 ? 'positive' : trendValue! < 0 ? 'negative' : 'neutral') : null;
+    const TrendIconComponent = trendDirection === 'negative' ? TrendingDown : TrendingUp;
+    const trendColor = trendDirection === 'negative'
+      ? 'text-red-600'
+      : trendDirection === 'neutral'
+        ? 'text-muted-foreground'
+        : 'text-green-600';
+    const formattedTrend = hasTrendValue
+      ? `${trendValue! > 0 ? '+' : trendValue! < 0 ? '' : ''}${trendValue!.toFixed(1)}% vs last month`
+      : null;
+
+    return (
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">{title}</CardTitle>
+          <Icon className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{value}</div>
+          <p className="text-xs text-muted-foreground">{description}</p>
+          {hasTrendValue && formattedTrend && (
+            <div className="flex items-center pt-1">
+              <TrendIconComponent className={`h-3 w-3 mr-1 ${trendColor}`} />
+              <span className={`text-xs ${trendColor}`}>{formattedTrend}</span>
+            </div>
+          )}
+          {!hasTrendValue && trendLabel && (
+            <div className="flex items-center pt-1">
+              <span className="text-xs text-muted-foreground">{trendLabel}</span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
 
   const BottleneckCard = () => (
-    <Card>
+    <Card
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">Bottleneck</CardTitle>
         <AlertTriangle className="h-4 w-4 text-muted-foreground" />
@@ -120,8 +343,8 @@ export function Dashboard() {
       <CardContent>
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-2xl font-bold" style={{ color: '#EF4444' }}>
-              {currentBottleneck.toFixed(1)} days
+            <div className="text-2xl font-bold text-destructive">
+              {formatDaysLabel(currentBottleneck)}
             </div>
             <p className="text-xs text-muted-foreground">{bottleneckReason}</p>
             <div className="mt-2">
@@ -136,6 +359,7 @@ export function Dashboard() {
                 {currentStageColor.name}
               </Badge>
             </div>
+            <p className="text-xs text-muted-foreground mt-2">{stageSampleLabel}</p>
           </div>
         </div>
       </CardContent>
@@ -163,10 +387,11 @@ export function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <MetricCard
           title="Total Candidates"
-          value={candidates.length}
-          description="Active in pipeline"
+          value={currentMonthCandidateCount}
+          description="Created this month"
           icon={Users}
-          trend="+12% from last month"
+          trendValue={candidateTrendValue}
+          trendLabel={candidateTrendLabel}
         />
         <MetricCard
           title="Active Positions"
@@ -177,14 +402,13 @@ export function Dashboard() {
         <BottleneckCard />
         <MetricCard
           title="Hired This Month"
-          value={metrics?.hired_this_month ?? 0}
+          value={hiredThisMonthCount}
           description="New team members"
           icon={Target}
-          trend="+25% from last month"
         />
         <MetricCard
           title="Avg. Time to Hire"
-          value={`${(metrics?.avg_time_to_hire ?? 0).toFixed(1)} days`}
+          value={formatDaysLabel(metrics?.avg_time_to_hire)}
           description="From application to offer"
           icon={Clock}
         />
@@ -234,9 +458,10 @@ export function Dashboard() {
               return (
               <div key={candidate.id} className="flex items-center justify-between p-4 border border-border/40 rounded-lg">
                 <div className="flex items-center space-x-4">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-green-500 flex items-center justify-center">
-                    <span className="text-white font-medium">{initials}</span>
-                  </div>
+                  <Avatar className="w-10 h-10">
+                    <AvatarImage src={resolveAvatarUrl(candidate)} alt={name} />
+                    <AvatarFallback>{initials}</AvatarFallback>
+                  </Avatar>
                   <div>
                     <h4 className="font-medium">{name}</h4>
                     <p className="text-sm text-muted-foreground">{candidate.position}</p>

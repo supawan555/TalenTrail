@@ -24,7 +24,7 @@ export function Pipeline({ onCandidateSelect, candidates: propCandidates }: Pipe
 
   if (loading) return null;
 
-  if (user?.role !== 'hr-recruiter') {
+  if (!user || !['hr-recruiter','ADMIN'].includes(user.role)) {
     return null; 
   }
 

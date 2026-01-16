@@ -23,4 +23,13 @@ export const ROLE_NAVIGATION = {
     '/analytics',
     '/settings',
   ],
+  'ADMIN': [
+    '/dashboard',
+    '/archived-candidates',
+    '/candidates',
+    '/pipeline',
+    '/notes',
+    '/analytics',
+    '/settings',
+  ],
 } as const;
