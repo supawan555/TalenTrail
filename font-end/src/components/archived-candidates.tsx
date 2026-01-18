@@ -14,7 +14,7 @@ import { Candidate } from '../lib/mock-data';
 import { toast } from 'sonner';
 import api from '../lib/api';
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL ?? 'https://talentrail-1.onrender.com';
 
 interface ArchivedCandidatesProps {
   candidates: Candidate[];

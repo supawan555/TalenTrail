@@ -12,7 +12,7 @@ A full‑stack recruiting app built with React (Vite) and FastAPI, backed by Mon
 
 Helpful URLs
 - Frontend: [http://localhost:3000](http://localhost:3000)
-- Backend (FastAPI docs): [http://localhost:8000/docs](http://localhost:8000/docs)
+- Backend (FastAPI docs): [https://talentrail-1.onrender.com/docs](https://talentrail-1.onrender.com/docs)
 
 ---
 
@@ -25,9 +25,9 @@ Folder: `font-end/`
 cd font-end
 npm install
 
-# 2) (Optional) Tell the UI where your API is (defaults to http://localhost:8000)
+# 2) (Optional) Tell the UI where your API is (defaults to https://talentrail-1.onrender.com)
 # macOS/Linux (bash)
-export VITE_API_URL="http://localhost:8000"
+export VITE_API_URL="https://talentrail-1.onrender.com"
 
 # 3) Start the dev server
 npm run dev
@@ -36,11 +36,11 @@ npm run dev
 
 Windows PowerShell (optional env var)
 ```powershell
-$env:VITE_API_URL = "http://localhost:8000"
+$env:VITE_API_URL = "https://talentrail-1.onrender.com"
 ```
 
 Notes
-- The app reads `import.meta.env.VITE_API_URL`. If not set, it uses `http://localhost:8000`.
+- The app reads `import.meta.env.VITE_API_URL`. If not set, it uses `https://talentrail-1.onrender.com`.
 - Vite dev server runs on port 3000 (see `font-end/vite.config.ts`).
 - Production builds are written to `font-end/build` (custom `outDir`).
 
@@ -66,7 +66,7 @@ export TALENTTAIL_TOTP_STATIC_SECRET="JBSWY3DPEHPK3PXP"
 
 # 4) Run the API (new modular entry)
 uvicorn app.main:app --reload --port 8000
-# → Open http://localhost:8000/docs
+# → Open https://talentrail-1.onrender.com/docs
 ```
 
 Windows PowerShell (activate venv + optional env var)
@@ -102,7 +102,7 @@ npm run dev
 
 Then open:
 - Frontend: [http://localhost:3000](http://localhost:3000)
-- Backend docs: [http://localhost:8000/docs](http://localhost:8000/docs)
+- Backend docs: [https://talentrail-1.onrender.com/docs](https://talentrail-1.onrender.com/docs)
 
 ---
 
@@ -171,10 +171,10 @@ TalentTrail/
 - CORS
 	- The backend allows localhost/127.0.0.1 by default; if you change ports, restart the API.
 - Env variables
-	- Frontend: `VITE_API_URL` to point to your API (e.g., `http://localhost:8000`).
+	- Frontend: `VITE_API_URL` to point to your API (e.g., `https://talentrail-1.onrender.com`).
 	- Backend: `TALENTTAIL_TOTP_STATIC_SECRET` (Base32) for predictable OTP during dev.
 - Uploads
-	- PDF resumes and images are served from `/uploads` (e.g., `http://localhost:8000/uploads/<file>`).
+	- PDF resumes and images are served from `/uploads` (e.g., `https://talentrail-1.onrender.com/uploads/<file>`).
 - Auth (TOTP)
 	- After register, you’ll see an OTP setup modal with an `otpauth://` link, QR code, and Base32 secret.
 

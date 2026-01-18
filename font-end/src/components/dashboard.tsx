@@ -84,7 +84,7 @@ const getStageEnteredDate = (candidate: any) =>
 
 const formatDaysLabel = (value?: number | null) => `${Math.max(0, Math.round(value ?? 0))} days`;
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL ?? 'https://talentrail-1.onrender.com';
 
 type DashboardMetrics = {
   bottleneck: { state: string | null; avg_days: number };
