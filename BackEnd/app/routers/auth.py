@@ -24,7 +24,10 @@ def _cookie_options(request: Request) -> dict:
     """Determine SameSite/Secure flags respecting reverse proxies."""
     forwarded = (request.headers.get("x-forwarded-proto") or "").lower()
     scheme = forwarded or request.url.scheme
-    if scheme == "https":
+    # For production (Vercel frontend + deployed backend), always use none/secure
+    # Check if origin is from Vercel or localhost
+    origin = request.headers.get("origin", "")
+    if "vercel.app" in origin or scheme == "https":
         return {"samesite": "none", "secure": True}
     return {"samesite": "lax", "secure": False}
 
@@ -78,7 +81,7 @@ async def auth_login(req: LoginRequest, response: Response, request: Request):
     max_age=1440 * 60,
     samesite=cookie_opts["samesite"],
     secure=cookie_opts["secure"],
-    path="/",          # ✅ เพิ่ม
+    path="/",         
 )
 
 
@@ -124,7 +127,7 @@ async def auth_verify_otp(req: VerifyOtpRequest, response: Response, request: Re
     max_age=1440 * 60,
     samesite=cookie_opts["samesite"],
     secure=cookie_opts["secure"],
-    path="/",          # ✅ เพิ่ม
+    path="/",          
 )
 
 
