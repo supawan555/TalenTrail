@@ -1,7 +1,9 @@
 import axios from 'axios';
 
+const API_BASE_URL = import.meta.env?.VITE_API_URL ?? 'https://talentrail-1.onrender.com';
+
 const api = axios.create({
-  baseURL: 'http://localhost:8000', // URL ของ Backend
+  baseURL: API_BASE_URL, // URL ของ Backend
   withCredentials: true, // <--- บรรทัดนี้สำคัญที่สุด! ถ้าไม่มี Cookie จะไม่ถูกส่งไป
   headers: {
     'Content-Type': 'application/json',
