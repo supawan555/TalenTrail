@@ -6,6 +6,7 @@ PyPDF2
 scikit-learn
 pyotp
 pdfplumber
+pydantic[email]
 spacy
 pydantic-settings
 PyJWT
