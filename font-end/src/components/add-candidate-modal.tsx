@@ -38,8 +38,9 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
   // Role-based UI Guard
   if (loading) return null;
 
-  if (user?.role !== 'hr-recruiter') {
-    return null; // Role อื่น ห้ามใช้ Add Candidate
+
+  if (!user || !['hr-recruiter','ADMIN'].includes(user.role)) {
+    return null; 
   }
   const [roles, setRoles] = useState<string[]>([]);
   const [rolesLoading, setRolesLoading] = useState<boolean>(false);
