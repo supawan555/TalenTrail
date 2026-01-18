@@ -132,7 +132,7 @@ export function Candidates({ onCandidateSelect }: CandidatesProps) {
           <h2 className="text-2xl font-semibold">All Candidates</h2>
           <p className="text-muted-foreground">Manage and track all candidate applications</p>
         </div>
-        {user?.role === 'hr-recruiter' && (
+        {(user?.role === 'hr-recruiter' || user?.role === 'ADMIN') && (
           <Button onClick={() => setShowAddModal(true)} className="flex items-center gap-2">
             <Plus className="h-4 w-4" />
             Add Candidate
