@@ -49,5 +49,6 @@ CORS_ALLOW_ORIGINS: List[str] = [
     "http://127.0.0.1:5173",
     "http://127.0.0.1:3000",
     "http://127.0.0.1:8000",
+    "https://talen-trail.vercel.app",
 ]
-CORS_ALLOW_REGEX: str = r"^http://(localhost|127\.0\.0\.1):\d+$"
+CORS_ALLOW_REGEX: str = r"^(https://.*\.vercel\.app|http://(localhost|127\.0\.0\.1):\d+)$"
