@@ -72,13 +72,15 @@ async def auth_login(req: LoginRequest, response: Response, request: Request):
 
         cookie_opts = _cookie_options(request)
         response.set_cookie(
-            key="access_token",
-            value=access_token,
-            httponly=True,
-            max_age=1440 * 60,
-            samesite=cookie_opts["samesite"],
-            secure=cookie_opts["secure"],
-        )
+    key="access_token",
+    value=access_token,
+    httponly=True,
+    max_age=1440 * 60,
+    samesite=cookie_opts["samesite"],
+    secure=cookie_opts["secure"],
+    path="/",          # ✅ เพิ่ม
+)
+
 
         # No OTP required for admin; return placeholder pendingToken
         return LoginResponse(otp_required=False, pendingToken="")
@@ -116,13 +118,15 @@ async def auth_verify_otp(req: VerifyOtpRequest, response: Response, request: Re
     # ฝัง HTTP-Only Cookie
     cookie_opts = _cookie_options(request)
     response.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=True,
-        max_age=1440 * 60, # หน่วยวินาที
-        samesite=cookie_opts["samesite"],
-        secure=cookie_opts["secure"]
-    )
+    key="access_token",
+    value=access_token,
+    httponly=True,
+    max_age=1440 * 60,
+    samesite=cookie_opts["samesite"],
+    secure=cookie_opts["secure"],
+    path="/",          # ✅ เพิ่ม
+)
+
 
     # อัปเดต Session ว่าใช้แล้ว
     auth_sessions_collection.update_one(
@@ -134,6 +138,13 @@ async def auth_verify_otp(req: VerifyOtpRequest, response: Response, request: Re
 
     # เพิ่ม Logout ให้ด้วย
 @router.post("/logout")
-async def logout(response: Response):
-    response.delete_cookie("access_token")
+async def logout(response: Response, request: Request):
+    cookie_opts = _cookie_options(request)
+    response.delete_cookie(
+        key="access_token",
+        path="/",
+        samesite=cookie_opts["samesite"],
+        secure=cookie_opts["secure"],
+    )
     return {"message": "Logout successful"}
+

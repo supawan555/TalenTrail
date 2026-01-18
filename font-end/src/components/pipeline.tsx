@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Mail, Phone, Calendar, Search } from 'lucide-react';
 import { pipelineStages, Candidate } from '../lib/mock-data';
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'https://talentrail-1.onrender.com';
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 import api from '../lib/api';
 
 interface PipelineProps {
@@ -107,8 +107,8 @@ export function Pipeline({ onCandidateSelect, candidates: propCandidates }: Pipe
           <Avatar className="w-10 h-10">
             <AvatarImage
               src={candidate.avatar
-                ? `${import.meta.env.VITE_API_URL ?? 'https://talentrail-1.onrender.com'}${candidate.avatar.replace('/uploads/','/upload-file/')}`
-                : `${import.meta.env.VITE_API_URL ?? 'https://talentrail-1.onrender.com'}/upload-file/default_avatar.svg`}
+                ? `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}${candidate.avatar.replace('/uploads/','/upload-file/')}`
+                : `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/upload-file/default_avatar.svg`}
               alt={candidate.name}
             />
             <AvatarFallback>{candidate.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>

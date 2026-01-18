@@ -22,7 +22,7 @@ import {
   XCircle
 } from 'lucide-react';
 import { Candidate } from '../lib/mock-data';
-const API_BASE = import.meta.env.VITE_API_URL ?? 'https://talentrail-1.onrender.com';
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AddCandidateModal } from './add-candidate-modal';

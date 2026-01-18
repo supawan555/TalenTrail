@@ -3,7 +3,7 @@ import api from './lib/api';
 import { Routes, Route, useNavigate, useParams, Navigate, Outlet } from 'react-router-dom';
 import { Toaster, toast } from 'sonner';
 // --- Context & Auth ---
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 // --- Components ---
 import { Layout } from './components/layout';
@@ -29,9 +29,9 @@ function AppContent() {
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  
-// Fetch candidates from API on mount
-const fetchCandidates = async () => {
+
+  // Fetch candidates from API on mount
+  const fetchCandidates = async () => {
     try {
       const res = await api.get('/candidates');
       setCandidates(res.data); // เอาข้อมูลจริงใส่ State
@@ -43,7 +43,7 @@ const fetchCandidates = async () => {
     }
   };
 
-// เพิ่ม useEffect เพื่อเรียกข้อมูลตอนเข้าเว็บครั้งแรก
+  // เพิ่ม useEffect เพื่อเรียกข้อมูลตอนเข้าเว็บครั้งแรก
   useEffect(() => {
     fetchCandidates();
   }, []);
@@ -64,14 +64,14 @@ const fetchCandidates = async () => {
   const handleAddCandidate = async (newCandidate: Candidate) => {
     // ⚠️ ถ้าจะให้บันทึกลง Database จริง ต้องแก้ตรงนี้ให้เรียก api.post
     // แต่เบื้องต้นสั่งให้ Fetch ใหม่เพื่อให้ข้อมูล Sync กับ Server ก็ได้ครับ
-    await fetchCandidates(); 
+    await fetchCandidates();
     toast.success('Candidate added successfully!');
   };
 
   const handleEditCandidate = async (updatedCandidate: Candidate) => {
     // ⚠️ ถ้าจะให้บันทึกลง Database จริง ต้องเรียก api.put ที่นี่
     // อัปเดต UI ไปก่อน
-    setCandidates(prev => 
+    setCandidates(prev =>
       prev.map(c => c.id === updatedCandidate.id ? updatedCandidate : c)
     );
     setSelectedCandidate(updatedCandidate);
@@ -80,22 +80,22 @@ const fetchCandidates = async () => {
 
   const handleDeleteCandidate = async (candidateId: string) => {
     try {
-        // ✅ ตัวอย่างการลบข้อมูลจริง (เรียก API)
-        await api.delete(`/candidates/${candidateId}`);
-        
-        // ลบออกจาก State
-        setCandidates(prev => prev.filter(c => c.id !== candidateId));
-        setSelectedCandidate(null);
-        navigate('/candidates');
-        toast.success('Candidate deleted successfully!');
+      // ✅ ตัวอย่างการลบข้อมูลจริง (เรียก API)
+      await api.delete(`/candidates/${candidateId}`);
+
+      // ลบออกจาก State
+      setCandidates(prev => prev.filter(c => c.id !== candidateId));
+      setSelectedCandidate(null);
+      navigate('/candidates');
+      toast.success('Candidate deleted successfully!');
     } catch (error) {
-        toast.error('Failed to delete candidate');
+      toast.error('Failed to delete candidate');
     }
   };
 
   const handleNextStage = (candidateId: string) => {
     const stageOrder: Candidate['stage'][] = ['applied', 'screening', 'interview', 'final', 'hired'];
-    setCandidates(prev => 
+    setCandidates(prev =>
       prev.map(c => {
         if (c.id === candidateId) {
           const currentIndex = stageOrder.indexOf(c.stage);
@@ -113,11 +113,11 @@ const fetchCandidates = async () => {
   };
 
   const handleRejectCandidate = (candidateId: string, reason: string) => {
-    setCandidates(prev => 
+    setCandidates(prev =>
       prev.map(c => {
         if (c.id === candidateId) {
-          const updatedCandidate = { 
-            ...c, 
+          const updatedCandidate = {
+            ...c,
             stage: 'rejected' as Candidate['stage'],
             archivedDate: new Date().toISOString().split('T')[0],
             archiveReason: reason
@@ -132,11 +132,11 @@ const fetchCandidates = async () => {
   };
 
   const handleDropOffCandidate = (candidateId: string, reason: string) => {
-    setCandidates(prev => 
+    setCandidates(prev =>
       prev.map(c => {
         if (c.id === candidateId) {
-          const updatedCandidate = { 
-            ...c, 
+          const updatedCandidate = {
+            ...c,
             stage: 'drop-off' as Candidate['stage'],
             archivedDate: new Date().toISOString().split('T')[0],
             archiveReason: reason
@@ -171,9 +171,9 @@ const fetchCandidates = async () => {
   const CandidateProfileWrapper = () => {
     const { id } = useParams();
     let seed = candidates.find(c => c.id === id) || selectedCandidate;
-    
+
     if (!id) return <Navigate to="/pipeline" replace />;
-    
+
     // Fallback seed
     if (!seed) {
       seed = {
@@ -208,56 +208,69 @@ const fetchCandidates = async () => {
     );
   };
 
+  /* ===== Root Redirect ===== */
+  const RootRedirect = () => {
+    const { user, loading } = useAuth();
+
+    if (loading) return <div>Loading...</div>;
+
+    return <Navigate to={user ? "/dashboard" : "/login"} replace />;
+  };
+
   // --- Routing Structure ---
   return (
     <Routes>
+      {/* Root */}
+      <Route path="/" element={<RootRedirect />} />
+
+
       {/* 1. Public Routes: Login & Register (เข้าได้เลยไม่ต้อง Login) */}
-      <Route 
-        path="/login" 
+      <Route
+        path="/login"
         element={
-          <Login 
-             // หมายเหตุ: Login ควรแก้ให้ใช้ useAuth().login() ภายในตัว Component เอง
-             // แต่ใส่ prop นี้ไว้เผื่อ Navigate (ถ้าจำเป็น)
-             onShowRegister={() => navigate('/register')} 
+          <Login
+            // หมายเหตุ: Login ควรแก้ให้ใช้ useAuth().login() ภายในตัว Component เอง
+            // แต่ใส่ prop นี้ไว้เผื่อ Navigate (ถ้าจำเป็น)
+            onShowRegister={() => navigate('/register')}
           />
-        } 
+        }
       />
-      <Route 
-        path="/register" 
+      <Route
+        path="/register"
         element={
-          <Register 
+          <Register
             onRegister={() => {
-               toast.success('Account created successfully! Please sign in.');
-               navigate('/login');
+              toast.success('Account created successfully! Please sign in.');
+              navigate('/login');
             }}
-            onBackToLogin={() => navigate('/login')} 
+            onBackToLogin={() => navigate('/login')}
           />
-        } 
+        }
       />
 
       {/* 2. Protected Routes: ต้อง Login ก่อนถึงจะเข้าได้ */}
       <Route element={<ProtectedRoute />}>
-         {/* Layout จะถูกคลุมด้วย ProtectedRoute อัตโนมัติ */}
-         <Route element={
-            <Layout>
-              <ScrollToTopOnCandidate />
-              <Outlet /> {/* หน้าต่างๆ จะมาโผล่ตรงนี้ */}
-            </Layout>
-         }>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            
-            <Route path="/pipeline" element={<Pipeline onCandidateSelect={handleCandidateSelect} />} />
-            <Route path="/candidates" element={<Candidates onCandidateSelect={handleCandidateSelect} />} />
-            <Route path="/archived-candidates" element={<ArchivedCandidates candidates={candidates} onRestore={handleRestoreCandidate} />} />
-            
-            <Route path="/job-descriptions" element={<JobDescriptions />} />
-            <Route path="/analytics" element={<Analytics />} />
-            <Route path="/notes" element={<Notes />} />
-            <Route path="/settings" element={<Settings onLogout={() => {/* Logout จัดการใน AuthContext */}} />} />
-            
-            <Route path="/candidate/:id" element={<CandidateProfileWrapper />} />
-         </Route>
+        {/* Layout จะถูกคลุมด้วย ProtectedRoute อัตโนมัติ */}
+        <Route element={
+          <Layout>
+            <ScrollToTopOnCandidate />
+            <Outlet /> {/* หน้าต่างๆ จะมาโผล่ตรงนี้ */}
+          </Layout>
+        }>
+          
+          <Route path="/dashboard" element={<Dashboard />} />
+
+          <Route path="/pipeline" element={<Pipeline onCandidateSelect={handleCandidateSelect} />} />
+          <Route path="/candidates" element={<Candidates onCandidateSelect={handleCandidateSelect} />} />
+          <Route path="/archived-candidates" element={<ArchivedCandidates candidates={candidates} onRestore={handleRestoreCandidate} />} />
+
+          <Route path="/job-descriptions" element={<JobDescriptions />} />
+          <Route path="/analytics" element={<Analytics />} />
+          <Route path="/notes" element={<Notes />} />
+          <Route path="/settings" element={<Settings onLogout={() => {/* Logout จัดการใน AuthContext */ }} />} />
+
+          <Route path="/candidate/:id" element={<CandidateProfileWrapper />} />
+        </Route>
       </Route>
 
       {/* 3. Catch All: ถ้าไม่เจอหน้าไหน ให้ไป Login */}
