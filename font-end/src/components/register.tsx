@@ -7,7 +7,7 @@
   import { Lock, Mail, Eye, EyeOff, Shield, User, Briefcase, Copy } from 'lucide-react';
   import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
 
-  const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+  const API_BASE = import.meta.env.VITE_API_URL ?? 'https://talentrail-1.onrender.com';
 
   interface RegisterProps {
     onRegister: () => void;

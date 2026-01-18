@@ -29,7 +29,7 @@ import {
 } from 'lucide-react';
 import api from '../lib/api';
 import { toast } from 'sonner';
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL ?? 'https://talentrail-1.onrender.com';
 
 // Normalize avatar URL; if missing, return undefined to use initials fallback
 const normalizeAvatarSrc = (url?: string): string | undefined => {

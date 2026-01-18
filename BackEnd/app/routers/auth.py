@@ -1,5 +1,5 @@
 """Auth routes: registration, login, OTP verification."""
-from fastapi import APIRouter, HTTPException, Response, Depends
+from fastapi import APIRouter, HTTPException, Response, Depends, Request
 from datetime import datetime, timedelta
 from ..services.auth import create_access_token, hash_password, verify_password, create_pending_session, verify_totp_code
 import os
@@ -18,6 +18,15 @@ from app.db import auth_users_collection, auth_sessions_collection
 from app.services.auth import hash_password, verify_password, create_pending_session, verify_totp_code
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def _cookie_options(request: Request) -> dict:
+    """Determine SameSite/Secure flags respecting reverse proxies."""
+    forwarded = (request.headers.get("x-forwarded-proto") or "").lower()
+    scheme = forwarded or request.url.scheme
+    if scheme == "https":
+        return {"samesite": "none", "secure": True}
+    return {"samesite": "lax", "secure": False}
 
 
 @router.post("/register", response_model=RegisterResponse)
@@ -46,7 +55,7 @@ async def auth_register(req: RegisterRequest):
 
 
 @router.post("/login", response_model=LoginResponse)
-async def auth_login(req: LoginRequest, response: Response):
+async def auth_login(req: LoginRequest, response: Response, request: Request):
     email = req.email.strip().lower()
     user = auth_users_collection.find_one({"email": email})
     if not user or not verify_password(req.password, user.get("password_hash")):
@@ -61,13 +70,14 @@ async def auth_login(req: LoginRequest, response: Response):
             expires_delta=access_token_expires,
         )
 
+        cookie_opts = _cookie_options(request)
         response.set_cookie(
             key="access_token",
             value=access_token,
             httponly=True,
             max_age=1440 * 60,
-            samesite="lax",
-            secure=False,
+            samesite=cookie_opts["samesite"],
+            secure=cookie_opts["secure"],
         )
 
         # No OTP required for admin; return placeholder pendingToken
@@ -79,7 +89,7 @@ async def auth_login(req: LoginRequest, response: Response):
 
 
 @router.post("/verify-otp")
-async def auth_verify_otp(req: VerifyOtpRequest, response: Response):
+async def auth_verify_otp(req: VerifyOtpRequest, response: Response, request: Request):
     session = auth_sessions_collection.find_one({"token": req.pendingToken, "stage": "pending"})
     if not session:
         raise HTTPException(status_code=401, detail="Invalid pending token")
@@ -104,13 +114,14 @@ async def auth_verify_otp(req: VerifyOtpRequest, response: Response):
     )
 
     # ฝัง HTTP-Only Cookie
+    cookie_opts = _cookie_options(request)
     response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,
         max_age=1440 * 60, # หน่วยวินาที
-        samesite="lax",
-        secure=False # แก้เป็น True ถ้าขึ้น Production
+        samesite=cookie_opts["samesite"],
+        secure=cookie_opts["secure"]
     )
 
     # อัปเดต Session ว่าใช้แล้ว
