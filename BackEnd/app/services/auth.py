@@ -11,6 +11,7 @@ from ..models.auth import RegisterRequest
 import base64
 import hashlib
 import hmac
+import logging
 import os
 import uuid
 import pyotp
@@ -20,6 +21,7 @@ _PBKDF_ITER = 200_000
 SECERT_KEY = settings.SECRET_KEY_AUTHEN
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+logger = logging.getLogger(__name__)
 
 
 def hash_password(pw: str) -> dict:
@@ -58,15 +60,12 @@ async def Check_Token(token: Annotated[str, Depends(oauth2_scheme)]):
         raise credentials_exception
     
 
-    
-    # user = auth_users_collection.find_one({"email": token_data.email})
-    # if user is None:
-    #     raise credentials_exception
-    # return user
-
 # สร้าง Dependency ใหม่สำหรับอ่าน Cookie
 async def get_current_user_from_cookie(request: Request):
-    token = request.cookies.get("access_token") # <--- อ่านจาก Cookie
+    token = request.cookies.get("access_token")
+    #เช็ค cookie ใน log
+    logger.warning("access_token cookie value: %s", token)
+    print(f"[auth] access_token cookie value: {token}")
     
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,

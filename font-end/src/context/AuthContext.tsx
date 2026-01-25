@@ -5,7 +5,7 @@ import api from '../lib/api';
 // กำหนด Type ของ User
 interface User {
   email: string;
-  role: 'hr-recruiter' | 'hiring-manager' | 'management';
+  role: 'hr-recruiter' | 'hiring-manager' | 'management' | 'ADMIN';
 }
 
 interface AuthContextType {

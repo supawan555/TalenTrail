@@ -17,6 +17,13 @@ from app.models.auth import (
 from app.db import auth_users_collection, auth_sessions_collection
 from app.services.auth import hash_password, verify_password, create_pending_session, verify_totp_code
 
+DEV_FRONTEND_ORIGINS = {
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+}
+
+LOCAL_DEV_HOSTS = {"127.0.0.1", "localhost"}
+
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
@@ -24,11 +31,19 @@ def _cookie_options(request: Request) -> dict:
     """Determine SameSite/Secure flags respecting reverse proxies."""
     forwarded = (request.headers.get("x-forwarded-proto") or "").lower()
     scheme = forwarded or request.url.scheme
-    # For production (Vercel frontend + deployed backend), always use none/secure
-    # Check if origin is from Vercel or localhost
-    origin = request.headers.get("origin", "")
+    host = (request.url.hostname or "").lower()
+    origin = (request.headers.get("origin") or "").lower()
+
+    is_local = host in LOCAL_DEV_HOSTS or origin in DEV_FRONTEND_ORIGINS
+
+    if is_local:
+        # Loopback origins can safely opt into SameSite=None and Chrome accepts Secure cookies
+        # even on http://localhost URLs, which keeps the cookie usable for XHR requests.
+        return {"samesite": "none", "secure": True}
+
     if "vercel.app" in origin or scheme == "https":
         return {"samesite": "none", "secure": True}
+
     return {"samesite": "lax", "secure": False}
 
 
@@ -75,14 +90,14 @@ async def auth_login(req: LoginRequest, response: Response, request: Request):
 
         cookie_opts = _cookie_options(request)
         response.set_cookie(
-    key="access_token",
-    value=access_token,
-    httponly=True,
-    max_age=1440 * 60,
-    samesite=cookie_opts["samesite"],
-    secure=cookie_opts["secure"],
-    path="/",         
-)
+            key="access_token",
+            value=access_token,
+            httponly=True,
+            max_age=1440 * 60,
+            samesite=cookie_opts["samesite"],
+            secure=cookie_opts["secure"],
+            path="/",
+        )
 
 
         # No OTP required for admin; return placeholder pendingToken
@@ -121,14 +136,14 @@ async def auth_verify_otp(req: VerifyOtpRequest, response: Response, request: Re
     # ฝัง HTTP-Only Cookie
     cookie_opts = _cookie_options(request)
     response.set_cookie(
-    key="access_token",
-    value=access_token,
-    httponly=True,
-    max_age=1440 * 60,
-    samesite=cookie_opts["samesite"],
-    secure=cookie_opts["secure"],
-    path="/",          
-)
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        max_age=1440 * 60,
+        samesite=cookie_opts["samesite"],
+        secure=cookie_opts["secure"],
+        path="/",
+    )
 
 
     # อัปเดต Session ว่าใช้แล้ว
