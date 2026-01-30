@@ -1,61 +1,69 @@
-# filepath: app/ml/resume_matcher.py
-import re
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+import logging
+from sentence_transformers import SentenceTransformer, util
 
-def _clean_text_for_match(text: str) -> str:
-    """
-    ฟังก์ชันทำความสะอาดเฉพาะกิจสำหรับ Matcher
-    (เก็บตัว + ไว้สำหรับ C++ แต่ตัดอย่างอื่นทิ้ง)
-    """
-    if not text: 
-        return ""
-    text = text.lower()
-    # เก็บ a-z, 0-9, ช่องว่าง และ + (สำหรับ C++)
-    text = re.sub(r'[^a-z0-9\s\+]', ' ', text)
-    # ยุบช่องว่างที่เกิน
-    text = re.sub(r'\s+', ' ', text).strip()
-    return text
+# ตั้งค่า Logger
+logger = logging.getLogger("talenttrail.ml")
 
-def match_resume_to_job(resume_text: str, job_description_text: str) -> float:
+# ✅ 1. โหลดโมเดล (โหลดครั้งเดียวตอนเริ่มแอป จะได้ไม่หน่วง)
+# 'all-MiniLM-L6-v2' คือโมเดลตัวเล็ก เร็ว และแม่นยำสำหรับภาษาอังกฤษ
+model = None
+try:
+    print("⏳ [ML] Loading SBERT model... (this may take a while on first run)")
+    model = SentenceTransformer('all-MiniLM-L6-v2')
+    print("✅ [ML] Model loaded successfully!")
+except Exception as e:
+    logger.error(f"Failed to load ML model: {e}")
+
+def match_resume_to_job(resume_text: str, job_description: str) -> float:
     """
-    ฟังก์ชันคำนวณความเหมือน (0-100%) โดยใช้ TF-IDF & Cosine Similarity
-    Logic เดียวกับที่เราเทสผ่านแล้วใน ai_engine.py
+    Calculate semantic similarity between resume and job description.
+    Returns a score between 0 and 100.
     """
-    # 1. ป้องกันค่าว่าง (Safety Check)
-    if not resume_text or not job_description_text:
+    # Safety Check
+    if not resume_text or not job_description:
         return 0.0
 
-    # 2. ทำความสะอาด
-    clean_resume = _clean_text_for_match(resume_text)
-    clean_job = _clean_text_for_match(job_description_text)
-    
-    # ถ้าทำความสะอาดแล้วไม่เหลือตัวหนังสือเลย ให้ตอบ 0
-    if not clean_resume or not clean_job:
+    if model is None:
+        logger.warning("Model not loaded, returning 0")
         return 0.0
-    
-    documents = [clean_resume, clean_job]
-    
+
     try:
-        # 3. แปลงเป็นตัวเลข (Vectorization)
-        vectorizer = TfidfVectorizer()
-        tfidf_matrix = vectorizer.fit_transform(documents)
-        
-        # 4. วัดมุม (Cosine Similarity)
-        # เปรียบเทียบ Resume (index 0) กับ Job (index 1)
-        similarity_matrix = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])
-        
-        # ดึงค่าออกมา (0.0 - 1.0)
-        score_float = similarity_matrix[0][0]
-        
-        # 5. แปลงเป็น 0-100% (ปัดเศษ 2 ตำแหน่ง)
-        final_score = round(score_float * 100, 2)
-        
-        return final_score
-        
-    except Exception as e:
-        print(f"⚠️ [Matcher] Error calculating score: {e}")
-        return 0.0
+        # ✅ 2. แปลงข้อความเป็น Vector (Embeddings)
+        # convert_to_tensor=True เพื่อให้คำนวณได้เร็วขึ้น
+        resume_embedding = model.encode(resume_text, convert_to_tensor=True)
+        job_embedding = model.encode(job_description, convert_to_tensor=True)
 
-# Export ฟังก์ชันให้ candidates.py เรียกใช้ได้
-__all__ = ["match_resume_to_job"]
+        # ✅ 3. คำนวณ Cosine Similarity (ความเหมือนของ Vector)
+        # ค่าที่ได้จะอยู่ระหว่าง -1 ถึง 1
+        score = util.cos_sim(resume_embedding, job_embedding)
+        
+        # ดึงค่าออกมาจาก Tensor
+        raw_score = score.item()
+
+        # ✅ 4. ปรับจูนคะแนน (Score Normalization) - สำคัญมาก!
+        # SBERT ปกติจะให้คะแนนความเหมือนข้อความยาวๆ อยู่ที่ช่วง 0.2 - 0.7 
+        # ถ้าได้ 0.6-0.7 คือเนื้อหาตรงกันมากแล้ว เราจึงต้อง Map สเกลใหม่ให้เป็น 0-100% ที่มนุษย์เข้าใจ
+        
+        # สูตร: ถ้า Raw Score < 0 ให้เป็น 0
+        if raw_score < 0: raw_score = 0
+        
+        # Linear Scaling: 
+        # กำหนดว่า Raw Score 0.15 = 0% (ไม่เหมือนเลย)
+        # กำหนดว่า Raw Score 0.75 = 100% (เหมือนเป๊ะ)
+        min_threshold = 0.15
+        max_threshold = 0.75
+        
+        normalized_score = (raw_score - min_threshold) / (max_threshold - min_threshold)
+        
+        # Clamp ค่าให้อยู่ระหว่าง 0 ถึง 1
+        normalized_score = max(0.0, min(1.0, normalized_score))
+        
+        # แปลงเป็นเปอร์เซ็นต์
+        final_percentage = round(normalized_score * 100, 2)
+
+        return final_percentage
+
+    except Exception as e:
+        logger.error(f"Error matching resume: {e}")
+        return 0.0
+    
