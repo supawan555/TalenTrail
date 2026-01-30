@@ -127,7 +127,12 @@ export function Dashboard() {
       }
 
       const stage = normalizeStage(candidate?.current_state ?? candidate?.stage ?? candidate?.status);
-      if (stage === 'hired') {
+      // Count hired candidates regardless of whether they're still in pipeline or archived
+      // Check both stage='hired' and archived candidates with status='hired'
+      const isHired = stage === 'hired' || 
+        (candidate?.stage === 'archived' && candidate?.status === 'hired');
+      
+      if (isHired) {
         const hiredDate = getCandidateHiredDate(candidate);
         if (hiredDate && isSameMonth(hiredDate, currentYear, currentMonth)) {
           hiredThisMonthCount += 1;

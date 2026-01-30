@@ -40,8 +40,10 @@ export function Candidates({ onCandidateSelect }: CandidatesProps) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Filter out archived candidates (rejected and drop-off)
-  const activeCandidates = allCandidates.filter(c => c.stage !== 'rejected' && c.stage !== 'drop-off');
+  // Filter out archived candidates (rejected, drop-off, and archived hired candidates)
+  const activeCandidates = allCandidates.filter(c => 
+    c.stage !== 'rejected' && c.stage !== 'drop-off' && c.stage !== 'archived'
+  );
 
   // ✅ 2. ใช้ api.get แทน fetch และ Map ข้อมูลวันที่
   useEffect(() => {

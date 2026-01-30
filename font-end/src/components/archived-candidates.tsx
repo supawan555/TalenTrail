@@ -22,7 +22,7 @@ interface ArchivedCandidatesProps {
 }
 
 const DEPARTMENTS = ['All', 'Engineering', 'Design', 'Product', 'Marketing', 'Data Science', 'Operations'];
-const STATUSES = ['All', 'Rejected', 'Drop-off'];
+const STATUSES = ['All', 'Rejected', 'Drop-off', 'Hired'];
 
 export function ArchivedCandidates({ candidates, onRestore }: ArchivedCandidatesProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -87,8 +87,11 @@ export function ArchivedCandidates({ candidates, onRestore }: ArchivedCandidates
     return (candidates && candidates.length > 0) ? candidates : remoteCandidates;
   }, [candidates, remoteCandidates]);
 
-  // Filter archived candidates (rejected or drop-off)
-  const archivedCandidates = sourceCandidates.filter(c => c.stage === 'rejected' || c.stage === 'drop-off');
+  // Filter archived candidates (rejected, drop-off, or archived)
+  // 'archived' stage includes hired candidates auto-archived after 7 days
+  const archivedCandidates = sourceCandidates.filter(c => 
+    c.stage === 'rejected' || c.stage === 'drop-off' || c.stage === 'archived'
+  );
 
   // Get unique roles from archived candidates
   const uniqueRoles = Array.from(new Set(archivedCandidates.map(c => c.position))).sort();
@@ -101,10 +104,16 @@ export function ArchivedCandidates({ candidates, onRestore }: ArchivedCandidates
       (candidate.archiveReason?.toLowerCase().includes(searchQuery.toLowerCase()) || false);
     const matchesDepartment = departmentFilter === 'All' || candidate.department === departmentFilter;
     const matchesRole = roleFilter === 'All' || candidate.position === roleFilter;
+    
+    // Status filter logic:
+    // - 'Rejected': stage === 'rejected'
+    // - 'Drop-off': stage === 'drop-off'
+    // - 'Hired': stage === 'archived' (auto-archived hired candidates)
     const matchesStatus = 
       statusFilter === 'All' || 
       (statusFilter === 'Rejected' && candidate.stage === 'rejected') ||
-      (statusFilter === 'Drop-off' && candidate.stage === 'drop-off');
+      (statusFilter === 'Drop-off' && candidate.stage === 'drop-off') ||
+      (statusFilter === 'Hired' && candidate.stage === 'archived');
     
     return matchesSearch && matchesDepartment && matchesRole && matchesStatus;
   });
@@ -150,6 +159,9 @@ export function ArchivedCandidates({ candidates, onRestore }: ArchivedCandidates
     if (stage === 'rejected') {
       return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Rejected</Badge>;
     }
+    if (stage === 'archived') {
+      return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Hired</Badge>;
+    }
     return <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">Drop-off</Badge>;
   };
 
@@ -176,7 +188,7 @@ export function ArchivedCandidates({ candidates, onRestore }: ArchivedCandidates
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-semibold">Archived Candidates</h2>
-          <p className="text-muted-foreground">View and manage rejected or dropped-off candidates</p>
+          <p className="text-muted-foreground">View and manage rejected, dropped-off, or hired candidates (auto-archived after 7 days)</p>
         </div>
         <div className="flex items-center space-x-2">
           <Archive className="w-5 h-5 text-muted-foreground" />
