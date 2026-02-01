@@ -23,8 +23,8 @@ export function JobDescriptions() {
   // Role-based UI Guard (Hiring Manager only)
   if (loading) return null;
 
-  if (user?.role !== 'hiring-manager') {
-    return null; // Role อื่นห้ามเห็น Job Descriptions
+  if (!user || !['hiring-manager', 'ADMIN'].includes(user.role)) {
+    return null; 
   }
   const [jobDescriptions, setJobDescriptions] = useState<JobDescription[]>([]);
   const [searchQuery, setSearchQuery] = useState('');

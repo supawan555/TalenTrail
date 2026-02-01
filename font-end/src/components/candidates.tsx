@@ -6,7 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Progress } from './ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import {
@@ -24,7 +23,6 @@ import { AddCandidateModal } from './add-candidate-modal';
 import { Candidate } from '../lib/mock-data';
 import { toast } from 'sonner'; // เพิ่ม Toast เพื่อแจ้งเตือน
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'https://talentrail-1.onrender.com';
 
 interface CandidatesProps {
   onCandidateSelect: (candidate: Candidate) => void;
@@ -198,22 +196,17 @@ export function Candidates({ onCandidateSelect }: CandidatesProps) {
           {sortedCandidates.map((candidate) => (
             <Card key={candidate.id} className="hover:shadow-md transition-shadow cursor-pointer">
               <CardHeader className="pb-3">
-                <div className="flex items-center space-x-3">
-                  <Avatar className="w-12 h-12">
-                    <AvatarImage
-                      src={candidate.avatar
-                        ? (candidate.avatar.startsWith('http') ? candidate.avatar : `${API_BASE}${candidate.avatar.replace('/uploads/', '/upload-file/')}`)
-                        : `${API_BASE}/upload-file/default_avatar.svg`}
-                      alt={candidate.name}
-                    />
-                    <AvatarFallback>{(candidate.name || '?').split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <Link to={`/candidate/${candidate.id}`} onClick={() => onCandidateSelect(candidate)} className="no-underline">
-                      <CardTitle className="text-lg hover:underline">{candidate.name}</CardTitle>
-                    </Link>
-                    <CardDescription>{candidate.position}</CardDescription>
-                  </div>
+                <div className="space-y-1">
+                  <Link
+                    to={`/candidate/${candidate.id}`}
+                    onClick={() => onCandidateSelect(candidate)}
+                    className="no-underline"
+                  >
+                    <CardTitle className="text-lg hover:underline">{candidate.name}</CardTitle>
+                  </Link>
+                  <CardDescription className="text-sm text-muted-foreground">
+                    {candidate.position}
+                  </CardDescription>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">

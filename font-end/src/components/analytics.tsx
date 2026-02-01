@@ -12,7 +12,7 @@ import {
   AreaChart,
   Cell
 } from 'recharts';
-import { Users, Clock, Target, Filter } from 'lucide-react';
+import { Users, Clock, Target, Filter, CalendarDays } from 'lucide-react';
 import { analyticsData } from '../lib/mock-data';
 import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -26,6 +26,16 @@ export function Analytics() {
   if (!user || !['management','ADMIN'].includes(user.role)) {
     return null; 
   }
+  const mockUpcomingJoiner = {
+    name: 'Alex Morgan',
+    position: 'Product Marketing Manager',
+    joinDate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString()
+  };
+  const joinDate = new Date(mockUpcomingJoiner.joinDate);
+  const daysUntilJoin = Math.max(
+    0,
+    Math.ceil((joinDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+  );
   const conversionFunnelData = [
     { stage: 'Applied', count: 245, percentage: 100, fill: '#3b82f6' }, // Blue
     { stage: 'Screening', count: 147, percentage: 60, fill: '#eab308' }, // Yellow
@@ -68,7 +78,7 @@ export function Analytics() {
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Applications</CardTitle>
@@ -97,6 +107,19 @@ export function Analytics() {
           <CardContent>
             <div className="text-2xl font-bold">8.5%</div>
             <p className="text-xs text-muted-foreground">+1.2% from last period</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div>
+              <CardTitle className="text-sm font-medium">Time to Join</CardTitle>
+            </div>
+            <CalendarDays className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">{daysUntilJoin} days</div>
+            <p className="mt-3 text-sm font-semibold">{mockUpcomingJoiner.name}</p>
+            <p className="text-sm text-muted-foreground">{mockUpcomingJoiner.position}</p>
           </CardContent>
         </Card>
       </div>

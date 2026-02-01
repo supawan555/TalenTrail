@@ -30,6 +30,7 @@ export const ROLE_NAVIGATION = {
     '/pipeline',
     '/notes',
     '/analytics',
+    '/job-descriptions',
     '/settings',
   ],
 } as const;

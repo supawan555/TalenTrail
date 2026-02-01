@@ -6,16 +6,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Badge } from './ui/badge';
 const API_BASE = import.meta.env.VITE_API_URL ?? 'https://talentrail-1.onrender.com';
 import { 
   Upload, 
   X, 
   FileText, 
-  User, 
-  Image
+  User
 } from 'lucide-react';
 
 // Roles will be loaded from backend job descriptions to stay consistent with DB
@@ -46,12 +43,8 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
   const [rolesLoading, setRolesLoading] = useState<boolean>(false);
   const [rolesError, setRolesError] = useState<string | null>(null);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
-  const [profilePicture, setProfilePicture] = useState<File | null>(null);
-  const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(candidate?.avatar || null);
   const [dragActive, setDragActive] = useState(false);
-  const [imageDragActive, setImageDragActive] = useState(false);
   const [selectedPosition, setSelectedPosition] = useState(candidate?.position || '');
-  const pictureInputRef = useRef<HTMLInputElement | null>(null);
   const resumeInputRef = useRef<HTMLInputElement | null>(null);
 
   const isEditMode = !!candidate;
@@ -70,7 +63,6 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
         name: candidate.name,
         position: candidate.position
       });
-      setProfilePicturePreview(candidate.avatar);
       setSelectedPosition(candidate.position);
     }
   }, [candidate, form]);
@@ -143,68 +135,17 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
     }
   };
 
-  const handleImageDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setImageDragActive(true);
-    } else if (e.type === "dragleave") {
-      setImageDragActive(false);
-    }
-  };
-
-  const handleImageDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setImageDragActive(false);
-    
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0];
-      if (file.type.startsWith('image/')) {
-        setProfilePicture(file);
-        setProfilePicturePreview(URL.createObjectURL(file));
-      } else {
-        toast.error('Please upload an image file');
-      }
-    }
-  };
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      if (file.type.startsWith('image/')) {
-        setProfilePicture(file);
-        setProfilePicturePreview(URL.createObjectURL(file));
-      } else {
-        toast.error('Please upload an image file');
-      }
-    }
-  };
-
   const onSubmit = async (data: CandidateFormData) => {
     if (!selectedPosition) {
       toast.error('Please select a position');
       return;
     }
 
-  // Upload files (profile picture and resume) if present
-  let uploadedAvatarUrl = profilePicturePreview || candidate?.avatar || null;
+  // Upload resume if present
   let uploadedResumeUrl = candidate?.resumeUrl || null;
   let uploadedResumeAnalysis: any = null;
 
   try {
-      if (profilePicture) {
-        const fd = new FormData();
-        fd.append('file', profilePicture, profilePicture.name);
-        const res = await fetch(`${API_BASE}/upload/profile-picture`, {
-          method: 'POST',
-          body: fd,
-        });
-        if (!res.ok) throw new Error(`Avatar upload failed (${res.status})`);
-        const json = await res.json();
-        uploadedAvatarUrl = json.url;
-      }
-
       if (resumeFile) {
         const fd2 = new FormData();
         fd2.append('file', resumeFile, resumeFile.name);
@@ -248,7 +189,6 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
       name: data.name,
       email: candidate?.email || 'candidate@example.com', // Default email
       phone: candidate?.phone || '+1 234 567 8900', // Default phone
-      avatar: uploadedAvatarUrl || profilePicturePreview || candidate?.avatar || `https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face`,
       position: selectedPosition,
       department: candidate?.department || getDepartmentFromPosition(selectedPosition),
       location: candidate?.location || 'Remote', // Default location
@@ -271,8 +211,6 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
   const handleClose = () => {
     form.reset();
     setResumeFile(null);
-    setProfilePicture(null);
-    setProfilePicturePreview(null);
     setSelectedPosition('');
     onClose();
   };
@@ -311,71 +249,6 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
                     {form.formState.errors.name.message}
                   </p>
                 )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="profilePicture">Profile Picture</Label>
-                <div
-                  className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-                    imageDragActive 
-                      ? 'border-primary bg-primary/5' 
-                      : 'border-muted-foreground/25 hover:border-primary/50'
-                  }`}
-                  onDragEnter={handleImageDrag}
-                  onDragLeave={handleImageDrag}
-                  onDragOver={handleImageDrag}
-                  onDrop={handleImageDrop}
-                >
-                  {profilePicturePreview ? (
-                    <div className="flex flex-col items-center space-y-2">
-                      <img 
-                        src={profilePicturePreview} 
-                        alt="Profile preview" 
-                        className="w-24 h-24 rounded-full object-cover"
-                      />
-                      <p className="text-sm">{profilePicture?.name}</p>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setProfilePicture(null);
-                          setProfilePicturePreview(null);
-                        }}
-                      >
-                        <X className="h-4 w-4 mr-1" />
-                        Remove
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <Image className="h-8 w-8 mx-auto text-muted-foreground" />
-                      <div>
-                        <p>Drag and drop an image here, or</p>
-                        <label>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="mt-2"
-                            onClick={() => pictureInputRef.current?.click()}
-                          >
-                            Browse Files
-                          </Button>
-                          <input
-                            id="profile-picture-upload"
-                            type="file"
-                            accept="image/*"
-                            onChange={handleImageChange}
-                            className="sr-only"
-                            ref={pictureInputRef}
-                          />
-                        </label>
-                      </div>
-                      <p className="text-xs text-muted-foreground">PNG, JPG, GIF up to 5MB</p>
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
           </div>

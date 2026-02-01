@@ -5,7 +5,6 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
-import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { ScrollArea } from './ui/scroll-area';
 import {
@@ -29,25 +28,6 @@ import {
 } from 'lucide-react';
 import api from '../lib/api';
 import { toast } from 'sonner';
-const API_BASE = import.meta.env.VITE_API_URL ?? 'https://talentrail-1.onrender.com';
-
-// Normalize avatar URL; if missing, return undefined to use initials fallback
-const normalizeAvatarSrc = (url?: string): string | undefined => {
-  if (!url || url.trim() === '') {
-    return undefined;
-  }
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    return url;
-  }
-  if (url.startsWith('/uploads/')) {
-    return `${API_BASE}${url.replace('/uploads/', '/upload-file/')}`;
-  }
-  if (url.startsWith('/upload-file/')) {
-    return `${API_BASE}${url}`;
-  }
-  return `${API_BASE}/${url}`;
-};
-
 const DEFAULT_TAGS = [
   "Awaiting Feedback",
   "Need Approval",
@@ -263,15 +243,7 @@ export function Notes() {
                   <SelectContent>
                     {candidates.map((candidate) => (
                       <SelectItem key={candidate.id} value={candidate.id}>
-                        <div className="flex items-center space-x-2">
-                          <Avatar className="w-6 h-6">
-                            <AvatarImage src={normalizeAvatarSrc(candidate.avatar)} alt={candidate.name} />
-                            <AvatarFallback className="text-xs">
-                              {candidate.name.split(' ').map(n => n[0]).join('')}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span>{candidate.name}</span>
-                        </div>
+                        <span>{candidate.name}</span>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -374,51 +346,43 @@ export function Notes() {
               {filteredNotes.map((note) => (
                 <Card key={note.id} className="hover:shadow-sm transition-shadow">
                   <CardContent className="pt-6">
-                    <div className="flex items-start space-x-4">
-                      <Avatar className="w-10 h-10">
-                        <AvatarImage src={normalizeAvatarSrc(note.candidateAvatar)} alt={note.candidateName} />
-                        <AvatarFallback>
-                          {(note.candidateName || '').split(' ').map(n => n[0]).join('')}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 space-y-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <h4 className="font-medium">{note.candidateName}</h4>
-                            <p className="text-sm text-muted-foreground">{note.candidatePosition}</p>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Badge className={getTypeColor(note.type)}>
-                              {note.type}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {new Date(note.timestamp).toLocaleDateString()}
-                            </span>
-                            {canDeleteNote(note) && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                onClick={() => openDeleteDialog(note)}
-                                aria-label="Delete note"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h4 className="font-medium">{note.candidateName}</h4>
+                          <p className="text-sm text-muted-foreground">{note.candidatePosition}</p>
                         </div>
-                        
-                        <p className="text-sm leading-relaxed">{note.content}</p>
-                        
-                        <div className="flex items-center justify-between pt-2 border-t border-border/40">
-                          <div className="flex items-center text-xs text-muted-foreground">
-                            <User className="w-3 h-3 mr-1" />
-                            By {note.author}
-                          </div>
-                          <div className="flex items-center text-xs text-muted-foreground">
-                            <Calendar className="w-3 h-3 mr-1" />
-                            {new Date(note.timestamp).toLocaleTimeString()}
-                          </div>
+                        <div className="flex items-center space-x-2">
+                          <Badge className={getTypeColor(note.type)}>
+                            {note.type}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(note.timestamp).toLocaleDateString()}
+                          </span>
+                          {canDeleteNote(note) && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              onClick={() => openDeleteDialog(note)}
+                              aria-label="Delete note"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <p className="text-sm leading-relaxed">{note.content}</p>
+                      
+                      <div className="flex items-center justify-between pt-2 border-t border-border/40">
+                        <div className="flex items-center text-xs text-muted-foreground">
+                          <User className="w-3 h-3 mr-1" />
+                          By {note.author}
+                        </div>
+                        <div className="flex items-center text-xs text-muted-foreground">
+                          <Calendar className="w-3 h-3 mr-1" />
+                          {new Date(note.timestamp).toLocaleTimeString()}
                         </div>
                       </div>
                     </div>

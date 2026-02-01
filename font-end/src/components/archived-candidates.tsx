@@ -6,7 +6,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
-import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
 import { Archive, Search, Eye, RotateCcw, Mail, Phone, Calendar, Briefcase } from 'lucide-react';
@@ -14,7 +13,6 @@ import { Candidate } from '../lib/mock-data';
 import { toast } from 'sonner';
 import api from '../lib/api';
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'https://talentrail-1.onrender.com';
 
 interface ArchivedCandidatesProps {
   candidates: Candidate[];
@@ -286,31 +284,9 @@ export function ArchivedCandidates({ candidates, onRestore }: ArchivedCandidates
                   filteredCandidates.map((candidate) => (
                     <TableRow key={candidate.id}>
                       <TableCell>
-                        <div className="flex items-center space-x-3">
-                          <Avatar className="w-9 h-9">
-                            <AvatarImage
-                              src={(() => {
-                                if (!candidate.avatar || candidate.avatar.trim() === '') {
-                                  return `${API_BASE}/upload-file/default_avatar.svg`;
-                                }
-                                if (candidate.avatar.startsWith('http://') || candidate.avatar.startsWith('https://')) {
-                                  return candidate.avatar;
-                                }
-                                const path = candidate.avatar.startsWith('/uploads/')
-                                  ? candidate.avatar.replace('/uploads/', '/upload-file/')
-                                  : candidate.avatar;
-                                return `${API_BASE}${path.startsWith('/') ? '' : '/'}${path}`;
-                              })()}
-                              alt={candidate.name}
-                            />
-                            <AvatarFallback>
-                              {candidate.name.split(' ').map(n => n[0]).join('')}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <div className="font-medium">{candidate.name}</div>
-                            <div className="text-xs text-muted-foreground">{candidate.email}</div>
-                          </div>
+                        <div className="space-y-0.5">
+                          <div className="font-medium">{candidate.name}</div>
+                          <div className="text-xs text-muted-foreground">{candidate.email}</div>
                         </div>
                       </TableCell>
                       <TableCell>{candidate.position}</TableCell>
@@ -377,22 +353,14 @@ export function ArchivedCandidates({ candidates, onRestore }: ArchivedCandidates
           {selectedCandidate && (
             <div className="space-y-6">
               {/* Candidate Header */}
-              <div className="flex items-start space-x-4">
-                <Avatar className="w-20 h-20">
-                  <AvatarImage src={selectedCandidate.avatar} alt={selectedCandidate.name} />
-                  <AvatarFallback>
-                    {selectedCandidate.name.split(' ').map(n => n[0]).join('')}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1">
-                  <h3 className="text-xl font-semibold">{selectedCandidate.name}</h3>
-                  <p className="text-muted-foreground">{selectedCandidate.position}</p>
-                  <div className="flex items-center space-x-3 mt-2">
-                    {getStatusBadge(selectedCandidate.stage)}
-                    <span className={`font-medium ${getMatchScoreColor(selectedCandidate.matchScore)}`}>
-                      {selectedCandidate.matchScore}% Match
-                    </span>
-                  </div>
+              <div>
+                <h3 className="text-xl font-semibold">{selectedCandidate.name}</h3>
+                <p className="text-muted-foreground">{selectedCandidate.position}</p>
+                <div className="flex items-center space-x-3 mt-2">
+                  {getStatusBadge(selectedCandidate.stage)}
+                  <span className={`font-medium ${getMatchScoreColor(selectedCandidate.matchScore)}`}>
+                    {selectedCandidate.matchScore}% Match
+                  </span>
                 </div>
               </div>
 

@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, MouseEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Progress } from './ui/progress';
-import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Users, Briefcase, AlertTriangle, TrendingUp, Clock, Target, TrendingDown } from 'lucide-react';
 import api from '../lib/api';
@@ -21,6 +21,9 @@ type StageDelay = {
   stage: StageKey;
   averageDays: number;
   sampleSize: number;
+  longestCandidateId?: string;
+  longestCandidateName?: string;
+  longestDurationDays: number;
 };
 
 const BOTTLENECK_STAGES: StageKey[] = ['applied', 'screening', 'interview', 'final'];
@@ -84,7 +87,6 @@ const getStageEnteredDate = (candidate: any) =>
 
 const formatDaysLabel = (value?: number | null) => `${Math.max(0, Math.round(value ?? 0))} days`;
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'https://talentrail-1.onrender.com';
 
 type DashboardMetrics = {
   bottleneck: { state: string | null; avg_days: number };
@@ -95,6 +97,7 @@ type DashboardMetrics = {
 
 export function Dashboard() {
   const { user, loading } = useAuth();// <--- 2. ดึงข้อมูล User มาใช้
+  const navigate = useNavigate();
 
 
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
@@ -162,47 +165,67 @@ export function Dashboard() {
   } = monthlyCandidateStats;
 
   const stageDelays = useMemo<StageDelay[]>(() => {
-    const durationMap = Object.keys(STAGE_COLORS).reduce((acc, key) => {
-      acc[key as StageKey] = [] as number[];
+    const stageStats = BOTTLENECK_STAGES.reduce((acc, stage) => {
+      acc[stage] = {
+        durations: [] as number[],
+        longestDuration: -1,
+        longestCandidateId: undefined as string | undefined,
+        longestCandidateName: undefined as string | undefined,
+      };
       return acc;
-    }, {} as Record<StageKey, number[]>);
+    }, {} as Record<StageKey, {
+      durations: number[];
+      longestDuration: number;
+      longestCandidateId?: string;
+      longestCandidateName?: string;
+    }>);
+
+    const now = new Date();
 
     candidates.forEach((candidate) => {
-      const history = candidate?.state_history ?? candidate?.stateHistory;
-      if (Array.isArray(history) && history.length > 0) {
-        history.forEach((entry: any) => {
-          const stageKey = normalizeStage(entry?.state);
-          if (!stageKey || !durationMap[stageKey]) return;
-          const enteredAt = parseDateValue(entry?.entered_at ?? entry?.enteredAt);
-          if (!enteredAt) return;
-          const exitedAt = parseDateValue(entry?.exited_at ?? entry?.exitedAt) ?? new Date();
-          durationMap[stageKey].push(diffInDays(exitedAt, enteredAt));
-        });
-        return;
-      }
+      const stageKey = normalizeStage(candidate?.current_state ?? candidate?.stage ?? candidate?.status);
+      if (!stageKey || !stageStats[stageKey]) return;
 
-      const stageKey = normalizeStage(candidate?.current_state ?? candidate?.stage);
-      if (!stageKey || !durationMap[stageKey]) return;
-      const enteredAt = getStageEnteredDate(candidate);
+      const enteredAt = getStageEnteredDate(candidate) ?? getCandidateCreatedDate(candidate);
       if (!enteredAt) return;
-      durationMap[stageKey].push(diffInDays(new Date(), enteredAt));
+
+      const duration = diffInDays(now, enteredAt);
+      const stats = stageStats[stageKey];
+      stats.durations.push(duration);
+
+      if (duration > stats.longestDuration) {
+        stats.longestDuration = duration;
+        stats.longestCandidateId = candidate?.id ?? candidate?._id ?? undefined;
+        stats.longestCandidateName = candidate?.name ?? 'Candidate';
+      }
     });
 
     return BOTTLENECK_STAGES.map((stage) => {
-      const samples = durationMap[stage] ?? [];
-      if (!samples.length) {
-        return { stage, averageDays: 0, sampleSize: 0 };
-      }
-      const total = samples.reduce((sum, value) => sum + value, 0);
+      const stats = stageStats[stage];
+      const samples = stats?.durations ?? [];
+      const averageDays = samples.length
+        ? Math.round(samples.reduce((sum, value) => sum + value, 0) / samples.length)
+        : 0;
+
       return {
         stage,
-        averageDays: Math.round(total / samples.length),
+        averageDays,
         sampleSize: samples.length,
+        longestCandidateId: stats?.longestCandidateId,
+        longestCandidateName: stats?.longestCandidateName,
+        longestDurationDays: Math.max(0, stats?.longestDuration ?? 0),
       };
     });
   }, [candidates]);
 
-  const defaultStage: StageDelay = { stage: BOTTLENECK_STAGES[0], averageDays: 0, sampleSize: 0 };
+  const defaultStage: StageDelay = {
+    stage: BOTTLENECK_STAGES[0],
+    averageDays: 0,
+    sampleSize: 0,
+    longestCandidateId: undefined,
+    longestCandidateName: undefined,
+    longestDurationDays: 0,
+  };
 
   useEffect(() => {
     if (isHovered || stageDelays.length === 0) return;
@@ -223,43 +246,24 @@ export function Dashboard() {
   const currentStageData = stageDelays[currentStageIndex] ?? stageDelays[0] ?? defaultStage;
   const currentStageKey = currentStageData?.stage ?? defaultStage.stage;
   const currentStageColor = STAGE_COLORS[currentStageKey];
-  const currentBottleneck = currentStageData?.averageDays ?? 0;
-  const bottleneckReason = currentBottleneck > 0 ? 'Potential Delay' : 'On Track';
+  const currentBottleneckDays = currentStageData?.longestDurationDays ?? 0;
+  const bottleneckReason = currentBottleneckDays > 0 ? 'Potential Delay' : 'On Track';
   const stageSampleLabel = currentStageData?.sampleSize
     ? `Based on ${currentStageData.sampleSize} candidate${currentStageData.sampleSize === 1 ? '' : 's'}`
     : 'Awaiting candidates in this stage';
+  const canNavigateToBottleneck = Boolean(currentStageData?.longestCandidateId);
+
+  const handleBottleneckIconClick = (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    if (!currentStageData?.longestCandidateId) return;
+    navigate(`/candidate/${currentStageData.longestCandidateId}`);
+  };
 
   const activeCandidates = candidates.filter((c) => {
     const stage = c.current_state || c.stage || 'applied';
     return stage !== 'rejected' && stage !== 'dropped' && stage !== 'drop-off' && stage !== 'hired';
   });
   const recentCandidates = candidates.slice(0, 5);
-
-  const resolveAvatarUrl = (candidate: any) => {
-    const rawAvatar = candidate?.avatar
-      || candidate?.profile_picture
-      || candidate?.profilePicture
-      || candidate?.photo
-      || candidate?.photo_url
-      || candidate?.photoUrl
-      || candidate?.image
-      || candidate?.image_url
-      || candidate?.imageUrl;
-
-    if (!rawAvatar) {
-      return `${API_BASE}/upload-file/default_avatar.svg`;
-    }
-
-    if (typeof rawAvatar === 'string' && rawAvatar.startsWith('http')) {
-      return rawAvatar;
-    }
-
-    const ensureLeadingSlash = (path: string) => (path.startsWith('/') ? path : `/${path}`);
-    const sanitized = ensureLeadingSlash(String(rawAvatar).trim().replace(/^\/+/, ''));
-    const normalizedPath = sanitized.replace(/^\/uploads\//, '/upload-file/');
-
-    return `${API_BASE}${normalizedPath}`;
-  };
 
   // Fetch data from backend
   useEffect(() => {
@@ -338,13 +342,25 @@ export function Dashboard() {
     >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">Bottleneck</CardTitle>
-        <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+        <button
+          type="button"
+          onClick={handleBottleneckIconClick}
+          disabled={!canNavigateToBottleneck}
+          className={`rounded-full p-1 text-muted-foreground transition-colors ${
+            canNavigateToBottleneck ? 'hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary' : 'opacity-50 cursor-not-allowed'
+          }`}
+          aria-label={canNavigateToBottleneck
+            ? `View ${currentStageData?.longestCandidateName ?? 'candidate'} in ${currentStageColor.name}`
+            : 'No bottleneck candidate available'}
+        >
+          <AlertTriangle className="h-4 w-4" />
+        </button>
       </CardHeader>
       <CardContent>
         <div className="flex items-center justify-between">
           <div>
             <div className="text-2xl font-bold text-destructive">
-              {formatDaysLabel(currentBottleneck)}
+              {formatDaysLabel(currentBottleneckDays)}
             </div>
             <p className="text-xs text-muted-foreground">{bottleneckReason}</p>
             <div className="mt-2">
@@ -453,43 +469,39 @@ export function Dashboard() {
             {recentCandidates.map((candidate) => {
               const stage = candidate.current_state || candidate.stage || 'applied';
               const name = candidate.name || 'Unknown';
-              const initials = String(name).split(' ').map((n: string) => n[0]).join('');
-              const matchScore = typeof candidate.matchScore === 'number' ? candidate.matchScore : (candidate.resumeAnalysis?.match?.score ?? 0);
+              const matchScore = typeof candidate.matchScore === 'number'
+                ? candidate.matchScore
+                : (candidate.resumeAnalysis?.match?.score ?? 0);
               return (
-              <div key={candidate.id} className="flex items-center justify-between p-4 border border-border/40 rounded-lg">
-                <div className="flex items-center space-x-4">
-                  <Avatar className="w-10 h-10">
-                    <AvatarImage src={resolveAvatarUrl(candidate)} alt={name} />
-                    <AvatarFallback>{initials}</AvatarFallback>
-                  </Avatar>
+                <div key={candidate.id} className="flex items-center justify-between p-4 border border-border/40 rounded-lg">
                   <div>
                     <h4 className="font-medium">{name}</h4>
                     <p className="text-sm text-muted-foreground">{candidate.position}</p>
                   </div>
-                </div>
-                <div className="flex items-center space-x-4">
-                  <div className="text-right">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-sm">Match Score</span>
-                      <Badge variant="secondary">{matchScore}%</Badge>
+                  <div className="flex items-center space-x-4">
+                    <div className="text-right">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm">Match Score</span>
+                        <Badge variant="secondary">{matchScore}%</Badge>
+                      </div>
+                      <Progress value={matchScore} className="w-20 h-2 mt-1" />
                     </div>
-                    <Progress value={matchScore} className="w-20 h-2 mt-1" />
+                    <Badge
+                      variant={stage === 'hired' ? 'default' : 'secondary'}
+                      className={`capitalize ${
+                        stage === 'hired' ? 'bg-green-100 text-green-800'
+                        : stage === 'interview' ? 'bg-purple-100 text-purple-800'
+                        : stage === 'final' ? 'bg-orange-100 text-orange-800'
+                        : stage === 'screening' ? 'bg-yellow-100 text-yellow-800'
+                        : 'bg-blue-100 text-blue-800'
+                      }`}
+                    >
+                      {stage}
+                    </Badge>
                   </div>
-                  <Badge 
-                    variant={stage === 'hired' ? 'default' : 'secondary'}
-                    className={`capitalize ${
-                      stage === 'hired' ? 'bg-green-100 text-green-800' :
-                      stage === 'interview' ? 'bg-purple-100 text-purple-800' :
-                      stage === 'final' ? 'bg-orange-100 text-orange-800' :
-                      stage === 'screening' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-blue-100 text-blue-800'
-                    }`}
-                  >
-                    {stage}
-                  </Badge>
                 </div>
-              </div>
-            );})}
+              );
+            })}
           </div>
         </CardContent>
       </Card>

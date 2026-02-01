@@ -1,11 +1,11 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Progress } from './ui/progress';
 import { ScrollArea } from './ui/scroll-area';
 import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
+import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { 
   Mail, 
@@ -55,6 +55,8 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
   const [showArchiveDialog, setShowArchiveDialog] = useState(false);
   const [archiveType, setArchiveType] = useState<'reject' | 'drop-off'>('reject');
   const [archiveReason, setArchiveReason] = useState('');
+  const [startDateInput, setStartDateInput] = useState('');
+  const [isSavingStartDate, setIsSavingStartDate] = useState(false);
   // Local copy of candidate that is refreshed from backend
   const [liveCandidate, setLiveCandidate] = useState<Candidate>(candidate);
   const navigate = useNavigate();
@@ -99,24 +101,6 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
     if (!url) return undefined;
     if (url.startsWith('http://') || url.startsWith('https://')) return url;
     return `${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`;
-  }, [liveCandidate]);
-
-  // Normalize avatar URL and provide fallback placeholder
-  const resolvedAvatarUrl = useMemo(() => {
-    const url = (liveCandidate as any)?.avatar as string | undefined;
-    if (!url || url.trim() === '') {
-      return `${API_BASE}/upload-file/default_avatar.svg`;
-    }
-    if (url.startsWith('http://') || url.startsWith('https://')) return url;
-    // For backend-provided /uploads/... rewrite to /upload-file/... for prefix fallback & placeholder support
-    if (url.startsWith('/uploads/')) {
-      return `${API_BASE}${url.replace('/uploads/', '/upload-file/')}`;
-    }
-    // If somehow a /upload-file/ path already
-    if (url.startsWith('/upload-file/')) {
-      return `${API_BASE}${url}`;
-    }
-    return `${API_BASE}/${url}`;
   }, [liveCandidate]);
 
   // Fetch latest candidate details from backend when profile opens
@@ -230,6 +214,41 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
     return stage === 'final' ? 'Final Round' : stage.charAt(0).toUpperCase() + stage.slice(1);
   };
 
+  const formatStartDateForDisplay = (value: string) => {
+    if (!value) return 'Not set';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return 'Not set';
+    return parsed.toLocaleDateString();
+  };
+
+  const extractStartDate = () => {
+    const raw = (liveCandidate as any)?.availableStartDate ?? (liveCandidate as any)?.available_start_date;
+    if (!raw) return '';
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) return '';
+    return parsed.toISOString().split('T')[0];
+  };
+
+  useEffect(() => {
+    setStartDateInput(extractStartDate());
+  }, [liveCandidate]);
+
+  const handleSaveStartDate = async () => {
+    if (!startDateInput || liveCandidate.stage !== 'hired') return;
+    setIsSavingStartDate(true);
+    try {
+      const payload = {
+        availableStartDate: startDateInput,
+      };
+      const res = await api.put(`/candidates/${liveCandidate.id}`, payload);
+      setLiveCandidate(res.data as Candidate);
+    } catch (err) {
+      console.error('Failed to save start date', err);
+    } finally {
+      setIsSavingStartDate(false);
+    }
+  };
+
   return (
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
@@ -271,16 +290,12 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
         <div className="lg:col-span-1 space-y-6">
           {/* Basic Info */}
           <Card>
-            <CardHeader className="text-center">
-              <Avatar className="w-24 h-24 mx-auto mb-4">
-                <AvatarImage src={resolvedAvatarUrl} alt={liveCandidate.name} />
-                <AvatarFallback className="text-lg">
-                  {liveCandidate.name.split(' ').map(n => n[0]).join('')}
-                </AvatarFallback>
-              </Avatar>
-              <CardTitle>{liveCandidate.name}</CardTitle>
-              <CardDescription>{liveCandidate.position}</CardDescription>
-              <div className="flex items-center justify-center mt-2">
+            <CardHeader className="text-center space-y-3">
+              <div>
+                <CardTitle>{liveCandidate.name}</CardTitle>
+                <CardDescription>{liveCandidate.position}</CardDescription>
+              </div>
+              <div className="flex items-center justify-center">
                 <Badge 
                   variant={liveCandidate.stage === 'hired' ? 'default' : 'secondary'}
                   className={`capitalize ${
@@ -329,6 +344,52 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
                   Excellent match for this position
                 </p>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Time to Join / Available Start Date */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Calendar className="w-5 h-5 mr-2" />
+                Time to Join
+              </CardTitle>
+              <CardDescription>
+                {liveCandidate.stage === 'hired'
+                  ? 'Record confirmed start date'
+                  : 'Unlocks after the candidate is marked as Hired'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {liveCandidate.stage === 'hired' ? (
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="start-date-input">Available start date</Label>
+                    <Input
+                      id="start-date-input"
+                      type="date"
+                      value={startDateInput}
+                      onChange={(e) => setStartDateInput(e.target.value)}
+                      className="mt-2"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-sm text-muted-foreground">
+                    <span>{formatStartDateForDisplay(startDateInput)}</span>
+                    <Button
+                      size="sm"
+                      onClick={handleSaveStartDate}
+                      disabled={!startDateInput || isSavingStartDate}
+                    >
+                      {isSavingStartDate ? 'Saving...' : 'Save Date'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center space-x-3 rounded-lg border border-dashed border-muted p-4 text-sm text-muted-foreground">
+                  <XCircle className="h-5 w-5 text-muted-foreground" />
+                  <p>Start date will be available once this candidate is hired.</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
