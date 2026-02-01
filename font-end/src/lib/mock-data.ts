@@ -295,6 +295,7 @@ export interface JobDescription {
   role: string;
   description: string;
   createdDate: string;
+  isHidden?: boolean;
 }
 
 export const mockJobDescriptions: JobDescription[] = [

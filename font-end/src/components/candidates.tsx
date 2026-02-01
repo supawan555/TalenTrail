@@ -95,11 +95,24 @@ export function Candidates({ onCandidateSelect }: CandidatesProps) {
   };
 
   const filteredCandidates = activeCandidates.filter(candidate => {
-    const matchesSearch = (candidate.name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
-      (candidate.position?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
-      (candidate.email?.toLowerCase() || '').includes(searchQuery.toLowerCase());
-    const matchesStage = stageFilter === 'all' || candidate.stage === stageFilter;
-    return matchesSearch && matchesStage;
+    const q = searchQuery.toLowerCase();
+
+    const matchesBasic =
+      (candidate.name?.toLowerCase() || '').includes(q) ||
+      (candidate.position?.toLowerCase() || '').includes(q) ||
+      (candidate.email?.toLowerCase() || '').includes(q);
+
+    const detectedSkills: string[] =
+      (candidate as any)?.resumeAnalysis?.skills ?? [];
+
+    const matchesSkills = detectedSkills.some(skill =>
+      skill.toLowerCase().includes(q)
+    );
+
+    const matchesStage =
+      stageFilter === 'all' || candidate.stage === stageFilter;
+
+    return (matchesBasic || matchesSkills) && matchesStage;
   });
 
   const sortedCandidates = [...filteredCandidates].sort((a, b) => {
