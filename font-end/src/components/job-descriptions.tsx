@@ -23,7 +23,11 @@ export function JobDescriptions() {
   // Role-based UI Guard (Hiring Manager only)
   if (loading) return null;
 
+<<<<<<< HEAD
   if (!user || !['hiring-manager', 'ADMIN'].includes(user.role)) {
+=======
+  if (!user || !['hiring-manager','ADMIN'].includes(user.role)) {
+>>>>>>> e97a9604aca9fb92a37c5498992a8e8bce6474f8
     return null; 
   }
   const [jobDescriptions, setJobDescriptions] = useState<JobDescription[]>([]);
@@ -34,6 +38,8 @@ export function JobDescriptions() {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedJob, setSelectedJob] = useState<JobDescription | null>(null);
+  const [showHidden, setShowHidden] = useState(false);
+
   
   // Form states
   const [formDepartment, setFormDepartment] = useState('');
@@ -61,14 +67,29 @@ export function JobDescriptions() {
   }, []);
 
   // Filter job descriptions
-  const filteredJobs = jobDescriptions.filter(job => {
-    const matchesSearch = 
-      job.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      job.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesDepartment = departmentFilter === 'all' || job.department === departmentFilter;
-    const matchesRole = roleFilter === 'all' || job.role === roleFilter;
-    return matchesSearch && matchesDepartment && matchesRole;
-  });
+const filteredJobs = jobDescriptions.filter(job => {
+  const isHidden = job.isHidden ?? false;
+
+  // แยก Active / Hidden
+  if (showHidden) {
+    if (!isHidden) return false;
+  } else {
+    if (isHidden) return false;
+  }
+
+  const matchesSearch =
+    job.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    job.description.toLowerCase().includes(searchQuery.toLowerCase());
+
+  const matchesDepartment =
+    departmentFilter === 'all' || job.department === departmentFilter;
+
+  const matchesRole =
+    roleFilter === 'all' || job.role === roleFilter;
+
+  return matchesSearch && matchesDepartment && matchesRole;
+});
+
 
   const handleAddJob = async () => {
     if (!formDepartment || !formRole.trim() || !formDescription.trim()) {
@@ -247,15 +268,26 @@ export function JobDescriptions() {
 
       {/* Job Descriptions Table */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <Briefcase className="w-5 h-5 mr-2" />
-            Job Listings
-          </CardTitle>
-          <CardDescription>
-            {filteredJobs.length} job description{filteredJobs.length !== 1 ? 's' : ''} found
-          </CardDescription>
-        </CardHeader>
+<CardHeader className="flex flex-row items-center justify-between">
+  <div>
+    <CardTitle className="flex items-center">
+      <Briefcase className="w-5 h-5 mr-2" />
+      {showHidden ? 'Hidden Job Listings' : 'Job Listings'}
+    </CardTitle>
+    <CardDescription>
+      {filteredJobs.length} job description{filteredJobs.length !== 1 ? 's' : ''} found
+    </CardDescription>
+  </div>
+
+  <Button
+    variant="outline"
+    size="sm"
+    onClick={() => setShowHidden(prev => !prev)}
+  >
+    {showHidden ? 'View Active Jobs' : 'View Hidden Jobs'}
+  </Button>
+</CardHeader>
+
         <CardContent>
           <div className="rounded-md border">
             <Table>
@@ -285,6 +317,23 @@ export function JobDescriptions() {
                           >
                             <Edit className="w-4 h-4" />
                           </Button>
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setJobDescriptions(prev =>
+                                prev.map(j =>
+                                  j.id === job.id
+                                    ? { ...j, isHidden: !j.isHidden }
+                                    : j
+                                )
+                              );
+                            }}
+                          >
+                            {job.isHidden ? 'Unhide' : 'Hide'}
+                          </Button>
+
                           <Button
                             variant="ghost"
                             size="sm"
@@ -293,6 +342,7 @@ export function JobDescriptions() {
                             <Trash2 className="w-4 h-4 text-red-500" />
                           </Button>
                         </div>
+
                       </TableCell>
                     </TableRow>
                   ))

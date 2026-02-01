@@ -426,6 +426,12 @@ async def update_candidate(candidate_id: str, request: Request):
             payload["rejected_at"] = None
             payload["dropped_at"] = None
             payload["status"] = "hired"
+        elif normalized_stage == "archived":
+            # For archived stage, preserve existing hired/rejected/dropped status
+            # This allows auto-archived hired candidates to retain their hired status
+            payload.setdefault("archived_date", now_dt)
+            # Don't override status - keep existing (hired/inactive/active)
+            payload.setdefault("status", existing.get("status", "active"))
         elif normalized_stage == "rejected":
             payload["rejected_at"] = now_dt
             payload["status"] = "inactive"

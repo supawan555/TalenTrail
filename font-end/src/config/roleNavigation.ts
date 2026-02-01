@@ -27,6 +27,7 @@ export const ROLE_NAVIGATION = {
     '/dashboard',
     '/archived-candidates',
     '/candidates',
+    '/job-descriptions',
     '/pipeline',
     '/notes',
     '/analytics',

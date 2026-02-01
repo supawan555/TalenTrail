@@ -29,7 +29,8 @@ async def get_dashboard_metrics(current_user: dict = Depends(get_current_user_fr
     start_month = datetime(now.year, now.month, 1)
     next_month = datetime(now.year + (1 if now.month == 12 else 0), 1 if now.month == 12 else now.month + 1, 1)
 
-    # Hired this month
+    # Hired this month (includes both active hired and archived hired candidates)
+    # Counts candidates where hired_at is within this month, regardless of current stage
     hired_this_month = candidate_collection.count_documents({
         "hired_at": {"$gte": start_month, "$lt": next_month}
     })
@@ -53,7 +54,7 @@ async def get_dashboard_metrics(current_user: dict = Depends(get_current_user_fr
 
     # Bottleneck: average days in current state for active candidates (exclude terminal states)
     bottleneck_pipeline = [
-        {"$match": {"current_state": {"$nin": ["hired", "rejected", "dropped", "drop-off"]}}},
+        {"$match": {"current_state": {"$nin": ["hired", "rejected", "dropped", "drop-off", "archived"]}}},
         {"$project": {
             "current_state": 1,
             # Find the active state entry in state_history for current_state
@@ -121,6 +122,8 @@ async def get_dashboard_analytics(current_user: dict = Depends(get_current_user_
         {"$group": {"_id": "$ym", "applications": {"$sum": 1}}},
         {"$sort": {"_id": 1}}
     ]
+    # Hires pipeline - counts all candidates who were hired (including auto-archived)
+    # based on hired_at timestamp, regardless of current stage
     hires_pipeline = [
         {"$match": {"hired_at": {"$ne": None}}},
         {"$project": {"ym": {"$dateToString": {"format": "%Y-%m", "date": "$hired_at"}}}},

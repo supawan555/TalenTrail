@@ -9,7 +9,7 @@ export interface Candidate {
   experience: string;
   location: string;
   matchScore: number;
-  stage: 'applied' | 'screening' | 'interview' | 'final' | 'hired' | 'rejected' | 'drop-off';
+  stage: 'applied' | 'screening' | 'interview' | 'final' | 'hired' | 'rejected' | 'drop-off' | 'archived';
   appliedDate: string;
   resumeUrl?: string;
   archivedDate?: string;
@@ -295,6 +295,7 @@ export interface JobDescription {
   role: string;
   description: string;
   createdDate: string;
+  isHidden?: boolean;
 }
 
 export const mockJobDescriptions: JobDescription[] = [

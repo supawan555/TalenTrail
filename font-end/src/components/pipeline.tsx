@@ -73,8 +73,11 @@ export function Pipeline({ onCandidateSelect, candidates: propCandidates }: Pipe
     return () => { cancelled = true; };
   }, [propCandidates]);
   
-  // Filter out archived candidates (rejected and drop-off)
-  const activeCandidates = allCandidates.filter(c => c.stage !== 'rejected' && c.stage !== 'drop-off');
+  // Filter out archived candidates (rejected, drop-off, and archived)
+  // This includes hired candidates that have been auto-archived after 7 days
+  const activeCandidates = allCandidates.filter(c => 
+    c.stage !== 'rejected' && c.stage !== 'drop-off' && c.stage !== 'archived'
+  );
 
   // Filter candidates based on search and department
   const filteredCandidates = useMemo(() => {
@@ -92,11 +95,30 @@ export function Pipeline({ onCandidateSelect, candidates: propCandidates }: Pipe
 
   // Create filtered pipeline stages
   const filteredStages = useMemo(() => {
-    return pipelineStages.map(stage => ({
-      ...stage,
-      candidates: filteredCandidates.filter(c => c.stage === stage.id)
-    }));
-  }, [filteredCandidates]);
+    return pipelineStages.map(stage => {
+      let stageCandidates = filteredCandidates.filter(c => c.stage === stage.id);
+      
+      // For 'hired' stage, also include archived candidates with status='hired'
+      // to show total hired count (both active and auto-archived)
+      if (stage.id === 'hired') {
+        const archivedHired = allCandidates.filter(c => 
+          c.stage === 'archived' && 
+          (c as any).status === 'hired' &&
+          // Apply same search and department filters
+          (searchQuery === '' || 
+            c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            c.position.toLowerCase().includes(searchQuery.toLowerCase())) &&
+          (departmentFilter === 'all' || c.department === departmentFilter)
+        );
+        stageCandidates = [...stageCandidates, ...archivedHired];
+      }
+      
+      return {
+        ...stage,
+        candidates: stageCandidates
+      };
+    });
+  }, [filteredCandidates, allCandidates, searchQuery, departmentFilter]);
 
   const CandidateCard = ({ candidate }: { candidate: Candidate }) => (
     <Card className="mb-3 cursor-pointer hover:shadow-md transition-shadow">

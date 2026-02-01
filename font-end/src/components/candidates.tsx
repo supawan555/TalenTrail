@@ -38,8 +38,10 @@ export function Candidates({ onCandidateSelect }: CandidatesProps) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Filter out archived candidates (rejected and drop-off)
-  const activeCandidates = allCandidates.filter(c => c.stage !== 'rejected' && c.stage !== 'drop-off');
+  // Filter out archived candidates (rejected, drop-off, and archived hired candidates)
+  const activeCandidates = allCandidates.filter(c => 
+    c.stage !== 'rejected' && c.stage !== 'drop-off' && c.stage !== 'archived'
+  );
 
   // ✅ 2. ใช้ api.get แทน fetch และ Map ข้อมูลวันที่
   useEffect(() => {
@@ -91,11 +93,24 @@ export function Candidates({ onCandidateSelect }: CandidatesProps) {
   };
 
   const filteredCandidates = activeCandidates.filter(candidate => {
-    const matchesSearch = (candidate.name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
-      (candidate.position?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
-      (candidate.email?.toLowerCase() || '').includes(searchQuery.toLowerCase());
-    const matchesStage = stageFilter === 'all' || candidate.stage === stageFilter;
-    return matchesSearch && matchesStage;
+    const q = searchQuery.toLowerCase();
+
+    const matchesBasic =
+      (candidate.name?.toLowerCase() || '').includes(q) ||
+      (candidate.position?.toLowerCase() || '').includes(q) ||
+      (candidate.email?.toLowerCase() || '').includes(q);
+
+    const detectedSkills: string[] =
+      (candidate as any)?.resumeAnalysis?.skills ?? [];
+
+    const matchesSkills = detectedSkills.some(skill =>
+      skill.toLowerCase().includes(q)
+    );
+
+    const matchesStage =
+      stageFilter === 'all' || candidate.stage === stageFilter;
+
+    return (matchesBasic || matchesSkills) && matchesStage;
   });
 
   const sortedCandidates = [...filteredCandidates].sort((a, b) => {

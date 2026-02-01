@@ -24,6 +24,7 @@ from app.routers import dashboard as dashboard_router
 from app.routers import settings as settings_router
 from app.routers import notes as notes_router
 from app.services.job_preload import register_startup
+from app.services.auto_archive_hired import register_auto_archive
 from app.utils.file_storage import UPLOAD_DIR
 
 app = FastAPI(title="TalentTail API", version="0.1.0")
@@ -82,6 +83,7 @@ app.include_router(notes_router.router)
 
 # Startup preload
 register_startup(app)
+register_auto_archive(app)
 
 
 @app.get("/")
