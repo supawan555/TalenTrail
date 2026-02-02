@@ -103,6 +103,45 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
     return `${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`;
   }, [liveCandidate]);
 
+  // Normalize backend payload to frontend Candidate shape
+  const normalizeCandidate = (raw: any): Candidate => {
+    const applied = raw?.appliedDate ?? raw?.applied_at ?? raw?.created_at ?? new Date().toISOString();
+    const appliedDate = (() => {
+      try {
+        const d = new Date(applied);
+        return Number.isNaN(d.getTime()) ? new Date().toISOString().split('T')[0] : d.toISOString().split('T')[0];
+      } catch {
+        return new Date().toISOString().split('T')[0];
+      }
+    })();
+    const stage = (raw?.stage ?? raw?.current_state ?? 'applied') as Candidate['stage'];
+    const matchScore = typeof raw?.matchScore === 'number'
+      ? raw.matchScore
+      : (typeof raw?.resumeAnalysis?.match?.score === 'number' ? Math.round(raw.resumeAnalysis.match.score) : 0);
+
+    return {
+      id: raw?.id ?? raw?._id ?? (candidate?.id ?? crypto.randomUUID()),
+      name: raw?.name ?? '',
+      email: raw?.email ?? '',
+      phone: raw?.phone ?? '',
+      avatar: raw?.avatar ?? undefined,
+      position: raw?.position ?? raw?.role ?? '',
+      department: raw?.department ?? '',
+      experience: raw?.experience ?? '',
+      location: raw?.location ?? '',
+      matchScore,
+      stage,
+      appliedDate,
+      resumeUrl: raw?.resume_url ?? raw?.resumeUrl ?? undefined,
+      archivedDate: raw?.archivedDate ?? raw?.archived_date ?? undefined,
+      archiveReason: raw?.archiveReason ?? raw?.archive_reason ?? undefined,
+      skills: Array.isArray(raw?.skills) ? raw.skills : [],
+      notes: Array.isArray(raw?.notes) ? raw.notes : [],
+      salary: raw?.salary ?? '',
+      availability: raw?.availability ?? '',
+    };
+  };
+
   // Fetch latest candidate details from backend when profile opens
   useEffect(() => {
     // Always start at the top when opening profile
@@ -117,8 +156,8 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
     const fetchCandidate = async () => {
       try {
         const res = await api.get(`/candidates/${candidate.id}`);
-        const fresh: Candidate = res.data;
-        if (isMounted) setLiveCandidate(fresh);
+        const fresh = normalizeCandidate(res.data);
+        if (isMounted) setLiveCandidate(fresh as Candidate);
       } catch (e) {
         // Keep using the provided candidate on failure
         console.warn('Failed to refresh candidate from backend:', e);
@@ -131,7 +170,7 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
   const handleEdit = async (updatedCandidate: Candidate) => {
     try {
       const res = await api.put(`/candidates/${liveCandidate.id}`, updatedCandidate);
-      const saved: Candidate = res.data;
+      const saved = normalizeCandidate(res.data) as Candidate;
       setLiveCandidate(saved);
       onEdit?.(saved);
     } catch (err) {
@@ -241,7 +280,7 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
         availableStartDate: startDateInput,
       };
       const res = await api.put(`/candidates/${liveCandidate.id}`, payload);
-      setLiveCandidate(res.data as Candidate);
+      setLiveCandidate(normalizeCandidate(res.data) as Candidate);
     } catch (err) {
       console.error('Failed to save start date', err);
     } finally {

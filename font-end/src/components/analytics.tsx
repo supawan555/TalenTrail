@@ -240,7 +240,6 @@ export function Analytics() {
   if (!user || !['management','ADMIN'].includes(user.role)) {
     return null; 
   }
-<<<<<<< HEAD
   const mockUpcomingJoiner = {
     name: 'Alex Morgan',
     position: 'Product Marketing Manager',
@@ -251,15 +250,6 @@ export function Analytics() {
     0,
     Math.ceil((joinDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
   );
-  const conversionFunnelData = [
-    { stage: 'Applied', count: 245, percentage: 100, fill: '#3b82f6' }, // Blue
-    { stage: 'Screening', count: 147, percentage: 60, fill: '#eab308' }, // Yellow
-    { stage: 'Interview', count: 89, percentage: 36, fill: '#8b5cf6' }, // Purple
-    { stage: 'Final Round', count: 34, percentage: 14, fill: '#f59e0b' }, // Orange
-    { stage: 'Hired', count: 21, percentage: 8.5, fill: '#10b981' } // Green
-  ];
-=======
->>>>>>> e97a9604aca9fb92a37c5498992a8e8bce6474f8
 
   if (isLoading) {
     return (

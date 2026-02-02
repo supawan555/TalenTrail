@@ -30,11 +30,51 @@ function AppContent() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Helper to normalize backend payload to frontend Candidate shape
+  const normalizeCandidate = (raw: any): Candidate => {
+    const applied = raw?.appliedDate ?? raw?.applied_at ?? raw?.created_at ?? new Date().toISOString();
+    const appliedDate = (() => {
+      try {
+        const d = new Date(applied);
+        return Number.isNaN(d.getTime()) ? new Date().toISOString().split('T')[0] : d.toISOString().split('T')[0];
+      } catch {
+        return new Date().toISOString().split('T')[0];
+      }
+    })();
+    const stage = (raw?.stage ?? raw?.current_state ?? 'applied') as Candidate['stage'];
+    const matchScore = typeof raw?.matchScore === 'number'
+      ? raw.matchScore
+      : (typeof raw?.resumeAnalysis?.match?.score === 'number' ? Math.round(raw.resumeAnalysis.match.score) : 0);
+
+    return {
+      id: raw?.id ?? raw?._id ?? crypto.randomUUID(),
+      name: raw?.name ?? '',
+      email: raw?.email ?? '',
+      phone: raw?.phone ?? '',
+      avatar: raw?.avatar ?? undefined,
+      position: raw?.position ?? raw?.role ?? '',
+      department: raw?.department ?? '',
+      experience: raw?.experience ?? '',
+      location: raw?.location ?? '',
+      matchScore,
+      stage,
+      appliedDate,
+      resumeUrl: raw?.resume_url ?? raw?.resumeUrl ?? undefined,
+      archivedDate: raw?.archivedDate ?? raw?.archived_date ?? undefined,
+      archiveReason: raw?.archiveReason ?? raw?.archive_reason ?? undefined,
+      skills: Array.isArray(raw?.skills) ? raw.skills : [],
+      notes: Array.isArray(raw?.notes) ? raw.notes : [],
+      salary: raw?.salary ?? '',
+      availability: raw?.availability ?? '',
+    };
+  };
+
   // Fetch candidates from API on mount
   const fetchCandidates = async () => {
     try {
       const res = await api.get('/candidates');
-      setCandidates(res.data); // เอาข้อมูลจริงใส่ State
+      const items = Array.isArray(res.data) ? res.data.map(normalizeCandidate) : [];
+      setCandidates(items); // map ให้ตรง type ฝั่งหน้าเว็บ
     } catch (error) {
       console.error("Failed to fetch candidates:", error);
       toast.error("Failed to load candidates");

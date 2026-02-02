@@ -23,11 +23,7 @@ export function JobDescriptions() {
   // Role-based UI Guard (Hiring Manager only)
   if (loading) return null;
 
-<<<<<<< HEAD
   if (!user || !['hiring-manager', 'ADMIN'].includes(user.role)) {
-=======
-  if (!user || !['hiring-manager','ADMIN'].includes(user.role)) {
->>>>>>> e97a9604aca9fb92a37c5498992a8e8bce6474f8
     return null; 
   }
   const [jobDescriptions, setJobDescriptions] = useState<JobDescription[]>([]);
