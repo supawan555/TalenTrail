@@ -4,14 +4,12 @@ import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Progress } from './ui/progress';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Mail, Phone, Calendar, Search } from 'lucide-react';
 import { pipelineStages, Candidate } from '../lib/mock-data';
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'https://talentrail-1.onrender.com';
 import api from '../lib/api';
 
 interface PipelineProps {
@@ -125,16 +123,7 @@ export function Pipeline({ onCandidateSelect, candidates: propCandidates }: Pipe
   const CandidateCard = ({ candidate }: { candidate: Candidate }) => (
     <Card className="mb-3 cursor-pointer hover:shadow-md transition-shadow">
       <CardContent className="p-4">
-        <div className="flex items-center space-x-3 mb-3">
-          <Avatar className="w-10 h-10">
-            <AvatarImage
-              src={candidate.avatar
-                ? `${import.meta.env.VITE_API_URL ?? 'https://talentrail-1.onrender.com'}${candidate.avatar.replace('/uploads/','/upload-file/')}`
-                : `${import.meta.env.VITE_API_URL ?? 'https://talentrail-1.onrender.com'}/upload-file/default_avatar.svg`}
-              alt={candidate.name}
-            />
-            <AvatarFallback>{candidate.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-          </Avatar>
+        <div className="mb-3">
           <div className="min-w-0">
             <Link
               to={`/candidate/${candidate.id}`}
