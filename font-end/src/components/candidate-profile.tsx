@@ -469,13 +469,7 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
 
           {/* Resume Analysis (from ML) */}
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <FileText className="w-5 h-5 mr-2" />
-                Resume Analysis
-              </CardTitle>
-              <CardDescription>Extracted details from the uploaded resume</CardDescription>
-            </CardHeader>
+            
             <CardContent className="space-y-4">
               {(() => {
                 const ra: any = (liveCandidate as any).resumeAnalysis;
