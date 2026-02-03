@@ -51,12 +51,12 @@ export function Login({ onLogin, onShowRegister }: any) { // ใช้ any แ�
     // Initial check
     checkBackendHealth();
 
-    // Poll every 2 seconds until backend is ready
+    // Poll every 5 seconds until backend is ready
     pollInterval = window.setInterval(() => {
       if (!isBackendReady) {
         checkBackendHealth();
       }
-    }, 2000);
+    }, 5000);
 
     return () => {
       isMounted = false;
