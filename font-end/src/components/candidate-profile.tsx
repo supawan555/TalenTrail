@@ -135,6 +135,7 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
       resumeUrl: raw?.resume_url ?? raw?.resumeUrl ?? undefined,
       archivedDate: raw?.archivedDate ?? raw?.archived_date ?? undefined,
       archiveReason: raw?.archiveReason ?? raw?.archive_reason ?? undefined,
+      resumeAnalysis: raw?.resumeAnalysis ?? raw?.resume_analysis ?? null,
       skills: Array.isArray(raw?.skills) ? raw.skills : [],
       notes: Array.isArray(raw?.notes) ? raw.notes : [],
       salary: raw?.salary ?? '',
