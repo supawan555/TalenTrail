@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -21,6 +21,48 @@ export function Login({ onLogin, onShowRegister }: any) { // ใช้ any แ�
   const [pendingToken, setPendingToken] = useState<string | null>(null);
   const [otpCode, setOtpCode] = useState('');
   const [error, setError] = useState('');
+  const [isBackendReady, setIsBackendReady] = useState(false);
+  const [isCheckingBackend, setIsCheckingBackend] = useState(true);
+  const [healthCheckAttempts, setHealthCheckAttempts] = useState(0);
+
+  // Poll backend health endpoint with retry logic
+  useEffect(() => {
+    let isMounted = true;
+    let pollInterval: number | null = null;
+
+    const checkBackendHealth = async () => {
+      try {
+        const response = await api.get('/health', { timeout: 5000 });
+        if (response.data?.status === 'healthy' && isMounted) {
+          console.log('✅ Backend is healthy');
+          setIsBackendReady(true);
+          setIsCheckingBackend(false);
+          if (pollInterval) clearInterval(pollInterval);
+        }
+      } catch (err: any) {
+        if (isMounted) {
+          setHealthCheckAttempts(prev => prev + 1);
+          console.log(`⏳ Backend health check attempt ${healthCheckAttempts + 1} failed:`, err.message);
+          // Continue polling - don't stop on error
+        }
+      }
+    };
+
+    // Initial check
+    checkBackendHealth();
+
+    // Poll every 2 seconds until backend is ready
+    pollInterval = window.setInterval(() => {
+      if (!isBackendReady) {
+        checkBackendHealth();
+      }
+    }, 2000);
+
+    return () => {
+      isMounted = false;
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, [isBackendReady, healthCheckAttempts]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,6 +114,105 @@ export function Login({ onLogin, onShowRegister }: any) { // ใช้ any แ�
       setError(msg);
     }
   };
+
+  // Skeleton Loading UI
+  if (isCheckingBackend) {
+    return (
+      <div className="min-h-screen w-full relative overflow-hidden flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+          <div className="absolute top-0 -left-4 w-72 h-72 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob"></div>
+          <div className="absolute top-0 -right-4 w-72 h-72 bg-yellow-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-2000"></div>
+          <div className="absolute -bottom-8 left-20 w-72 h-72 bg-pink-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-4000"></div>
+          <div className="absolute bottom-8 right-20 w-72 h-72 bg-blue-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-6000"></div>
+        </div>
+
+        <div className="relative z-10 w-full max-w-md">
+          <Card className="backdrop-blur-xl bg-white/80 border-white/20 shadow-2xl">
+            <CardHeader className="space-y-4 text-center pb-8 pt-10">
+              <div className="mx-auto w-20 h-20 bg-gradient-to-br from-gray-200 to-gray-300 rounded-2xl flex items-center justify-center shadow-lg animate-pulse">
+                <Shield className="w-10 h-10 text-gray-400" />
+              </div>
+              
+              <div className="h-8 w-32 mx-auto bg-gray-200 rounded animate-pulse"></div>
+              
+              <div className="space-y-2">
+                <div className="h-9 w-48 mx-auto bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-5 w-64 mx-auto bg-gray-100 rounded animate-pulse"></div>
+              </div>
+            </CardHeader>
+
+            <CardContent className="space-y-6 px-8 pb-10">
+              {/* Email Field Skeleton */}
+              <div className="space-y-2">
+                <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-12 bg-gray-100 rounded-xl animate-pulse"></div>
+              </div>
+
+              {/* Password Field Skeleton */}
+              <div className="space-y-2">
+                <div className="h-4 w-20 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-12 bg-gray-100 rounded-xl animate-pulse"></div>
+              </div>
+
+              {/* Forgot Password Skeleton */}
+              <div className="flex justify-end">
+                <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+
+              {/* Submit Button Skeleton */}
+              <div className="h-12 bg-gray-200 rounded-xl animate-pulse"></div>
+
+              {/* Loading Status */}
+              <div className="text-center space-y-2">
+                <p className="text-sm text-gray-500 flex items-center justify-center gap-2">
+                  <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                  Connecting to the server...
+                </p>
+                {healthCheckAttempts > 0 && (
+                  <p className="text-xs text-gray-400">
+                    Polling attempt {healthCheckAttempts}
+                  </p>
+                )}
+              </div>
+
+              {/* Divider Skeleton */}
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-200"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-4 bg-white/80 text-gray-400">
+                    Don't have an account?
+                  </span>
+                </div>
+              </div>
+
+              {/* Register Link Skeleton */}
+              <div className="h-5 w-32 mx-auto bg-gray-200 rounded animate-pulse"></div>
+            </CardContent>
+          </Card>
+
+          <div className="mt-6 flex items-center justify-center gap-2 text-sm text-gray-600">
+            <Shield className="w-4 h-4" />
+            <span>Secured with end-to-end encryption</span>
+          </div>
+        </div>
+
+        <style>{`
+          @keyframes blob {
+            0% { transform: translate(0px, 0px) scale(1); }
+            33% { transform: translate(30px, -50px) scale(1.1); }
+            66% { transform: translate(-20px, 20px) scale(0.9); }
+            100% { transform: translate(0px, 0px) scale(1); }
+          }
+          .animate-blob { animation: blob 7s infinite; }
+          .animation-delay-2000 { animation-delay: 2s; }
+          .animation-delay-4000 { animation-delay: 4s; }
+          .animation-delay-6000 { animation-delay: 6s; }
+        `}</style>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -127,6 +268,7 @@ export function Login({ onLogin, onShowRegister }: any) { // ใช้ any แ�
                     onChange={(e) => setEmail(e.target.value)}
                     className="pl-11 h-12 bg-white/60 backdrop-blur-sm border-gray-200 focus:border-indigo-500 focus:ring-indigo-500 rounded-xl transition-all duration-200"
                     required
+                    disabled={!isBackendReady}
                   />
                 </div>
               </div>
@@ -145,11 +287,13 @@ export function Login({ onLogin, onShowRegister }: any) { // ใช้ any แ�
                     onChange={(e) => setPassword(e.target.value)}
                     className="pl-11 pr-11 h-12 bg-white/60 backdrop-blur-sm border-gray-200 focus:border-indigo-500 focus:ring-indigo-500 rounded-xl transition-all duration-200"
                     required
+                    disabled={!isBackendReady}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    disabled={!isBackendReady}
                   >
                     {showPassword ? (
                       <EyeOff className="w-5 h-5" />
@@ -163,7 +307,8 @@ export function Login({ onLogin, onShowRegister }: any) { // ใช้ any แ�
               <div className="flex justify-end">
                 <button
                   type="button"
-                  className="text-sm text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
+                  className="text-sm text-indigo-600 hover:text-indigo-700 hover:underline transition-colors disabled:text-gray-400 disabled:cursor-not-allowed"
+                  disabled={!isBackendReady}
                 >
                   Forgot Password?
                 </button>
@@ -171,13 +316,18 @@ export function Login({ onLogin, onShowRegister }: any) { // ใช้ any แ�
 
               <Button
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || !isBackendReady}
                 className="w-full h-12 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
               >
                 {isLoading ? (
                   <div className="flex items-center justify-center gap-2">
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                     <span>Signing in...</span>
+                  </div>
+                ) : !isBackendReady ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Connecting...</span>
                   </div>
                 ) : (
                   'Sign In'

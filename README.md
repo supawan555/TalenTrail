@@ -77,8 +77,7 @@ uvicorn app.main:app --reload --port 8000
 ```
 
 What’s inside
-- Auth endpoints (password hashing via PBKDF2 + TOTP via pyotp)
-- Job descriptions + candidates CRUD
+- Auth endpoints (password hashing via PBKDF2 + TOTP via pyotp)- Health check endpoint (`/health`) for frontend polling- Job descriptions + candidates CRUD
 - File uploads (PDF resumes, images) mounted at `/uploads`
 - Basic resume analysis integration hooks (optional)
 
