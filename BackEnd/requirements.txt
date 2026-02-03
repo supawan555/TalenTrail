@@ -2,16 +2,22 @@ fastapi
 uvicorn[standard]
 pymongo
 python-multipart
-PyPDF2
-scikit-learn
-pyotp
-pdfplumber
 pydantic[email]
-spacy
 pydantic-settings
 PyJWT
 passlib[bcrypt]
 python-jose[cryptography]
-axios
+pyotp
+
+# PDF
+PyPDF2
+pdfplumber
 PyMuPDF
+
+# HTTP
+axios
+
+# ML 
 sentence-transformers
+torch==2.1.2+cpu
+--extra-index-url https://download.pytorch.org/whl/cpu
