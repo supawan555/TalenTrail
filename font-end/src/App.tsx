@@ -46,7 +46,7 @@ function AppContent() {
       ? raw.matchScore
       : (typeof raw?.resumeAnalysis?.match?.score === 'number' ? Math.round(raw.resumeAnalysis.match.score) : 0);
 
-    return {
+    const base: any = {
       id: raw?.id ?? raw?._id ?? crypto.randomUUID(),
       name: raw?.name ?? '',
       email: raw?.email ?? '',
@@ -67,6 +67,11 @@ function AppContent() {
       salary: raw?.salary ?? '',
       availability: raw?.availability ?? '',
     };
+    // Preserve resumeAnalysis if present so Resume Analysis section can render
+    if (raw?.resumeAnalysis) {
+      base.resumeAnalysis = raw.resumeAnalysis;
+    }
+    return base as Candidate;
   };
 
   // Fetch candidates from API on mount
