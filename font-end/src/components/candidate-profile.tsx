@@ -119,7 +119,7 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
       ? raw.matchScore
       : (typeof raw?.resumeAnalysis?.match?.score === 'number' ? Math.round(raw.resumeAnalysis.match.score) : 0);
 
-    return {
+    const base: any = {
       id: raw?.id ?? raw?._id ?? (candidate?.id ?? crypto.randomUUID()),
       name: raw?.name ?? '',
       email: raw?.email ?? '',
@@ -141,6 +141,10 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
       salary: raw?.salary ?? '',
       availability: raw?.availability ?? '',
     };
+    if (raw?.resumeAnalysis) {
+      base.resumeAnalysis = raw.resumeAnalysis;
+    }
+    return base as Candidate;
   };
 
   // Fetch latest candidate details from backend when profile opens
