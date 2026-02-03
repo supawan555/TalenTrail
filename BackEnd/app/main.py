@@ -89,3 +89,8 @@ register_auto_archive(app)
 @app.get("/")
 async def root():
     return {"status": "ok", "message": "TalentTail backend running"}
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for frontend polling."""
+    return {"status": "healthy", "service": "TalentTrail API"}

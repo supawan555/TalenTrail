@@ -1,20 +1,103 @@
 python
 java
+c
 c++
+c#
 javascript
-react
-vue
+typescript
 sql
 nosql
+plsql
+bash
+shell scripting
+rest api
+api integration
+web application
+backend system
+frontend system
+microservices
+system architecture
+software integration
+mysql
+postgresql
+oracle database
 mongodb
+redis
+data analysis
+data analytics
+business intelligence
+dashboard
+reporting system
+aws
+azure
+google cloud
+cloud computing
 docker
 kubernetes
-aws
-communication
-teamwork
+ci/cd
+devops
+linux
+windows server
+virtualization
+industrial automation
+electrical engineering
+electronics engineering
+industrial iot
+iiot
+embedded systems
+firmware
+plc
+scada
+hmi
+control systems
+process automation
+factory automation
+edge computing
+field devices
+sensors
+actuators
+power electronics
+sales
+sales management
+b2b sales
+business development
+account management
+key account management
+customer relationship management
+crm
+sales pipeline
+sales forecasting
+revenue growth
+target achievement
+pricing strategy
+contract negotiation
+channel management
+distributor management
+partner management
+market analysis
+competitive analysis
+product marketing
+sales enablement
 leadership
-agile
-scrum
-machine learning
-data analysis
+people management
+team leadership
+team management
+coaching
+mentoring
+performance management
 project management
+stakeholder management
+decision making
+problem solving
+analytical thinking
+communication
+presentation skills
+public speaking
+negotiation
+influencing
+relationship building
+conflict resolution
+cross-functional collaboration
+time management
+adaptability
+ownership

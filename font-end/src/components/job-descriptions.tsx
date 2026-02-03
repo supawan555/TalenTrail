@@ -411,7 +411,15 @@ const filteredJobs = jobDescriptions.filter(job => {
 
       {/* Edit Job Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent
+          className="
+            max-w-2xl
+            max-h-[90vh]
+            overflow-y-auto
+            overflow-x-hidden
+            break-words
+          "
+        >
           <DialogHeader>
             <DialogTitle>Edit Job Description</DialogTitle>
             <DialogDescription>
@@ -445,13 +453,22 @@ const filteredJobs = jobDescriptions.filter(job => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-description">Description (Skills & Requirements)</Label>
-              <Textarea
-                id="edit-description"
-                placeholder="Describe the role, required skills, qualifications, and responsibilities..."
-                value={formDescription}
-                onChange={(e) => setFormDescription(e.target.value)}
-                className="min-h-[200px]"
-              />
+                <Textarea
+                  id="edit-description"
+                  placeholder="Describe the role, required skills, qualifications, and responsibilities..."
+                  value={formDescription}
+                  onChange={(e) => setFormDescription(e.target.value)}
+                  className="
+                    min-h-[200px]
+                    max-h-[300px]
+                    w-full
+                    overflow-y-auto
+                    overflow-x-hidden
+                    resize-none
+                    break-all
+                    whitespace-pre-wrap
+                  "
+                />
             </div>
           </div>
           <DialogFooter>
