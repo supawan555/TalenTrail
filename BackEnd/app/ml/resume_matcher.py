@@ -1,18 +1,32 @@
 import logging
-from sentence_transformers import SentenceTransformer, util
+
+# Lazy import to avoid heavy dependencies at module import time
+try:
+    from sentence_transformers import SentenceTransformer, util  # type: ignore
+except Exception:  # pragma: no cover
+    SentenceTransformer = None  # type: ignore
+    util = None  # type: ignore
 
 # ตั้งค่า Logger
 logger = logging.getLogger("talenttrail.ml")
 
-# ✅ 1. โหลดโมเดล (โหลดครั้งเดียวตอนเริ่มแอป จะได้ไม่หน่วง)
-# 'all-MiniLM-L6-v2' คือโมเดลตัวเล็ก เร็ว และแม่นยำสำหรับภาษาอังกฤษ
-model = None
-try:
-    print("⏳ [ML] Loading SBERT model... (this may take a while on first run)")
-    model = SentenceTransformer('all-MiniLM-L6-v2')
-    print("✅ [ML] Model loaded successfully!")
-except Exception as e:
-    logger.error(f"Failed to load ML model: {e}")
+# Global model placeholder for lazy initialization
+_MODEL = None
+
+def get_model():
+    """Initialize SBERT model on first use and reuse thereafter.
+
+    Ensures FastAPI can start instantly without loading the model at import time.
+    """
+    global _MODEL
+    if _MODEL is None:
+        if SentenceTransformer is None:
+            logger.error("sentence-transformers is not available")
+            raise RuntimeError("sentence-transformers is not available")
+        logger.info("⏳ [ML] Loading SBERT model 'all-MiniLM-L6-v2' on first use...")
+        _MODEL = SentenceTransformer('all-MiniLM-L6-v2')
+        logger.info("✅ [ML] SBERT model loaded successfully")
+    return _MODEL
 
 def match_resume_to_job(resume_text: str, job_description: str) -> float:
     """
@@ -23,8 +37,11 @@ def match_resume_to_job(resume_text: str, job_description: str) -> float:
     if not resume_text or not job_description:
         return 0.0
 
-    if model is None:
-        logger.warning("Model not loaded, returning 0")
+    # Lazy-load model on first use
+    try:
+        model = get_model()
+    except Exception:
+        logger.warning("Model not available, returning 0")
         return 0.0
 
     try:
@@ -35,6 +52,9 @@ def match_resume_to_job(resume_text: str, job_description: str) -> float:
 
         # ✅ 3. คำนวณ Cosine Similarity (ความเหมือนของ Vector)
         # ค่าที่ได้จะอยู่ระหว่าง -1 ถึง 1
+        if util is None:
+            logger.warning("sentence_transformers.util not available, returning 0")
+            return 0.0
         score = util.cos_sim(resume_embedding, job_embedding)
         
         # ดึงค่าออกมาจาก Tensor
