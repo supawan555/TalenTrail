@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from './lib/api';
 import { Routes, Route, useNavigate, useParams, Navigate, Outlet } from 'react-router-dom';
 import { Toaster, toast } from 'sonner';
@@ -20,18 +20,85 @@ import { Login } from './components/login';
 import { Register } from './components/register';
 import { ScrollToTopOnCandidate } from './components/scroll-to-top-on-candidate';
 // --- Data ---
-import { Candidate, mockCandidates } from './lib/mock-data';
+import { Candidate } from './lib/mock-data';
+
+const FullScreenLoader = ({ message }: { message: string }) => (
+  <div
+    role="status"
+    aria-live="polite"
+    style={{
+      position: 'relative',
+      minHeight: '100vh',
+      width: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '1.5rem',
+      background: 'radial-gradient(circle at 25% 25%, #0f172a, #020617)',
+      color: '#f8fafc',
+      textAlign: 'center',
+      padding: '2rem'
+    }}
+  >
+    <svg width="72" height="72" viewBox="0 0 24 24" aria-hidden="true">
+      <circle
+        cx="12"
+        cy="12"
+        r="9"
+        stroke="rgba(148, 163, 184, 0.35)"
+        strokeWidth="2"
+        fill="none"
+      />
+      <path
+        d="M21 12a9 9 0 0 1-9 9"
+        stroke="#38bdf8"
+        strokeWidth="2"
+        strokeLinecap="round"
+        fill="none"
+      >
+        <animateTransform
+          attributeName="transform"
+          type="rotate"
+          from="0 12 12"
+          to="360 12 12"
+          dur="0.8s"
+          repeatCount="indefinite"
+        />
+      </path>
+    </svg>
+    <div>
+      <p style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: '0.25rem' }}>TalentTail</p>
+      <p style={{ opacity: 0.8 }}>{message}</p>
+    </div>
+    <span
+      style={{
+        position: 'absolute',
+        width: 1,
+        height: 1,
+        padding: 0,
+        border: 0,
+        margin: -1,
+        clip: 'rect(0, 0, 0, 0)',
+        overflow: 'hidden'
+      }}
+    >
+      Loading
+    </span>
+  </div>
+);
 
 // Main App Content Component
 function AppContent() {
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
 
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [bootstrapping, setBootstrapping] = useState(true);
 
   // Helper to normalize backend payload to frontend Candidate shape
-  const normalizeCandidate = (raw: any): Candidate => {
+  const normalizeCandidate = useCallback((raw: any): Candidate => {
     const applied = raw?.appliedDate ?? raw?.applied_at ?? raw?.created_at ?? new Date().toISOString();
     const appliedDate = (() => {
       try {
@@ -72,10 +139,10 @@ function AppContent() {
       base.resumeAnalysis = raw.resumeAnalysis;
     }
     return base as Candidate;
-  };
+  }, []);
 
-  // Fetch candidates from API on mount
-  const fetchCandidates = async () => {
+  // Fetch candidates from API when the session is ready
+  const fetchCandidates = useCallback(async () => {
     try {
       const res = await api.get('/candidates');
       const items = Array.isArray(res.data) ? res.data.map(normalizeCandidate) : [];
@@ -83,15 +150,46 @@ function AppContent() {
     } catch (error) {
       console.error("Failed to fetch candidates:", error);
       toast.error("Failed to load candidates");
-    } finally {
-      setIsLoading(false);
     }
-  };
+  }, [normalizeCandidate]);
 
-  // เพิ่ม useEffect เพื่อเรียกข้อมูลตอนเข้าเว็บครั้งแรก
+  // Hydrate candidates only after auth is ready and a session exists
   useEffect(() => {
-    fetchCandidates();
-  }, []);
+    if (authLoading) {
+      return;
+    }
+
+    if (!user) {
+      setBootstrapping(false);
+      setCandidates([]);
+      setSelectedCandidate(null);
+      return;
+    }
+
+    let isCancelled = false;
+
+    const hydrate = async () => {
+      setBootstrapping(true);
+      try {
+        await fetchCandidates();
+      } finally {
+        if (!isCancelled) {
+          setBootstrapping(false);
+        }
+      }
+    };
+
+    hydrate();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [authLoading, user, fetchCandidates]);
+
+  if (authLoading || bootstrapping) {
+    const loaderMessage = authLoading ? 'Checking your session…' : 'Loading your workspace…';
+    return <FullScreenLoader message={loaderMessage} />;
+  }
 
   // --- Handlers ---
 
@@ -257,7 +355,7 @@ function AppContent() {
   const RootRedirect = () => {
     const { user, loading } = useAuth();
 
-    if (loading) return <div>Loading...</div>;
+    if (loading) return null;
 
     return <Navigate to={user ? "/dashboard" : "/login"} replace />;
   };

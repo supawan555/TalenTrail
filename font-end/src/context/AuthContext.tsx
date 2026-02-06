@@ -24,6 +24,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // ฟังก์ชันเช็คว่า Login อยู่ไหม (ยิงไปถาม Backend)
   const checkAuth = async () => {
+    setLoading(true);
     try {
       // เรียก route ที่เราทำไว้ เช่น /dashboard/profile
       // Backend จะอ่าน Cookie แล้วตอบกลับมาว่าเราคือใคร
@@ -57,7 +58,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <AuthContext.Provider value={{ user, loading, login, logout, checkAuth }}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 };
