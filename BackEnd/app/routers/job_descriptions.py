@@ -26,6 +26,7 @@ async def list_jobs():
             role=str(role),
             description=str(desc),
             createdDate=str(created),
+            isHidden=bool(j.get("isHidden", False)),
         )
 
     items = [to_out(j) for j in job_collection.find().sort("created_at", -1)]
@@ -35,6 +36,7 @@ async def list_jobs():
 @router.post("", response_model=JobDescriptionOut)
 async def create_job(body: JobDescriptionIn):
     doc = body.model_dump()
+    doc.setdefault("isHidden", False)
     # Add createdDate if not provided by client
     doc.setdefault("createdDate", datetime.utcnow().isoformat())
     res = job_collection.insert_one(doc)
@@ -58,7 +60,15 @@ async def update_job(job_id: str, body: JobDescriptionIn):
     merged = {**existing, **updates}
     # Preserve createdDate if it exists; otherwise set it for response consistency
     merged.setdefault("createdDate", existing.get("createdDate", datetime.utcnow().isoformat()))
-    return JobDescriptionOut(id=str(merged["_id"]), department=str(merged.get("department", "General")), role=str(merged.get("role", "Unknown")), description=str(merged.get("description", "")), createdDate=str(merged.get("createdDate")))
+    merged.setdefault("isHidden", existing.get("isHidden", False))
+    return JobDescriptionOut(
+        id=str(merged["_id"]),
+        department=str(merged.get("department", "General")),
+        role=str(merged.get("role", "Unknown")),
+        description=str(merged.get("description", "")),
+        createdDate=str(merged.get("createdDate")),
+        isHidden=bool(merged.get("isHidden", False)),
+    )
 
 
 @router.delete("/{job_id}")

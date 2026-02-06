@@ -42,11 +42,28 @@ def _load_spacy():
         _spacy_nlp = None
     return _spacy_nlp
 
-SKILL_KEYWORDS = [
-    'Python', 'Java', 'C++', 'SQL', 'TensorFlow', 'Keras', 'Pandas', 'NumPy',
-    'Machine Learning', 'AI', 'Deep Learning', 'HTML', 'CSS', 'JavaScript',
-    'React', 'Node', 'Django', 'Flask', 'AWS', 'Docker', 'Kubernetes'
-]
+_SKILL_KEYWORDS_CACHE: List[str] | None = None
+
+
+def _load_skill_keywords() -> List[str]:
+    """Load skills from ml/skills.txt; cache result to avoid re-reads."""
+    global _SKILL_KEYWORDS_CACHE
+    if _SKILL_KEYWORDS_CACHE is not None:
+        return _SKILL_KEYWORDS_CACHE
+
+    skills_file = Path(__file__).resolve().parent.parent / 'ml' / 'skills.txt'
+    keywords: List[str] = []
+    try:
+        with skills_file.open('r', encoding='utf-8') as fh:
+            for line in fh:
+                skill = line.strip()
+                if skill:
+                    keywords.append(skill)
+    except Exception:
+        keywords = []
+
+    _SKILL_KEYWORDS_CACHE = keywords
+    return _SKILL_KEYWORDS_CACHE
 
 EMAIL_RE = re.compile(r'[\w\.-]+@[\w\.-]+')
 PHONE_RE = re.compile(r'(\+?\d[\d\s-]{8,15}\d)')
@@ -102,7 +119,7 @@ def _extract_name(text: str) -> str | None:
 
 def _extract_skills(text: str) -> List[str]:
     found = []
-    for skill in SKILL_KEYWORDS:
+    for skill in _load_skill_keywords():
         if re.search(r'\b' + re.escape(skill) + r'\b', text, re.IGNORECASE):
             found.append(skill)
     return sorted(set(found))

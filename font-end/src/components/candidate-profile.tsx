@@ -140,6 +140,7 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
       notes: Array.isArray(raw?.notes) ? raw.notes : [],
       salary: raw?.salary ?? '',
       availability: raw?.availability ?? '',
+      availableStartDate: raw?.availableStartDate ?? raw?.available_start_date ?? '',
     };
     if (raw?.resumeAnalysis) {
       base.resumeAnalysis = raw.resumeAnalysis;
@@ -258,15 +259,8 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
     return stage === 'final' ? 'Final Round' : stage.charAt(0).toUpperCase() + stage.slice(1);
   };
 
-  const formatStartDateForDisplay = (value: string) => {
-    if (!value) return 'Not set';
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return 'Not set';
-    return parsed.toLocaleDateString();
-  };
-
   const extractStartDate = () => {
-    const raw = (liveCandidate as any)?.availableStartDate ?? (liveCandidate as any)?.available_start_date;
+    const raw = liveCandidate.availableStartDate ?? (liveCandidate as any)?.available_start_date;
     if (!raw) return '';
     const parsed = new Date(raw);
     if (Number.isNaN(parsed.getTime())) return '';
@@ -285,7 +279,11 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
         availableStartDate: startDateInput,
       };
       const res = await api.put(`/candidates/${liveCandidate.id}`, payload);
-      setLiveCandidate(normalizeCandidate(res.data) as Candidate);
+      const normalized = normalizeCandidate(res.data) as Candidate;
+      const ensured = normalized.availableStartDate
+        ? normalized
+        : ({ ...normalized, availableStartDate: startDateInput } as Candidate);
+      setLiveCandidate(ensured);
     } catch (err) {
       console.error('Failed to save start date', err);
     } finally {
@@ -417,8 +415,7 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
                       className="mt-2"
                     />
                   </div>
-                  <div className="flex items-center justify-between text-sm text-muted-foreground">
-                    <span>{formatStartDateForDisplay(startDateInput)}</span>
+                  <div className="flex justify-end">
                     <Button
                       size="sm"
                       onClick={handleSaveStartDate}

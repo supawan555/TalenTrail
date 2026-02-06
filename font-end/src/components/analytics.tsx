@@ -1,5 +1,6 @@
 import { useAuth } from '../context/AuthContext';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, KeyboardEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { 
   BarChart, 
@@ -14,16 +15,23 @@ import {
   Cell
 } from 'recharts';
 import { Users, Clock, Target, Filter, CalendarDays } from 'lucide-react';
-import { analyticsData } from '../lib/mock-data';
 import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import api from '../lib/api';
 
 type TimeRange = 'week' | '1month' | '3months' | '6months' | '1year';
 type ChartDimension = 'department' | 'position';
+type UpcomingJoiner = {
+  candidateId: string;
+  name: string;
+  position: string;
+  joinDate: Date;
+  daysUntil: number;
+};
 
 export function Analytics() {
   const { user, loading } = useAuth();
+  const navigate = useNavigate();
   const [timeRange, setTimeRange] = useState<TimeRange>('6months');
   const [chartDimension, setChartDimension] = useState<ChartDimension>('department');
   const [candidates, setCandidates] = useState<any[]>([]);
@@ -240,16 +248,48 @@ export function Analytics() {
   if (!user || !['management','ADMIN'].includes(user.role)) {
     return null; 
   }
-  const mockUpcomingJoiner = {
-    name: 'Alex Morgan',
-    position: 'Product Marketing Manager',
-    joinDate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString()
-  };
-  const joinDate = new Date(mockUpcomingJoiner.joinDate);
-  const daysUntilJoin = Math.max(
-    0,
-    Math.ceil((joinDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-  );
+  const upcomingJoiner = useMemo<UpcomingJoiner | null>(() => {
+    if (!Array.isArray(candidates) || candidates.length === 0) return null;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dayInMs = 1000 * 60 * 60 * 24;
+
+    const entries = candidates
+      .map((candidate): UpcomingJoiner | null => {
+        const candidateId = candidate?.id ?? candidate?._id ?? null;
+        if (!candidateId) return null;
+        const stage = (candidate?.stage || candidate?.current_state || '').toLowerCase();
+        const status = (candidate?.status || '').toLowerCase();
+        const isHired = stage === 'hired' || (stage === 'archived' && status === 'hired');
+        if (!isHired) return null;
+
+        const rawStartDate =
+          candidate?.availableStartDate ??
+          candidate?.available_start_date ??
+          candidate?.startDate ??
+          candidate?.start_date;
+        if (!rawStartDate) return null;
+
+        const startDate = new Date(rawStartDate);
+        if (Number.isNaN(startDate.getTime())) return null;
+        startDate.setHours(0, 0, 0, 0);
+        if (startDate < today) return null;
+
+        const daysUntil = Math.max(0, Math.ceil((startDate.getTime() - today.getTime()) / dayInMs));
+        return {
+          candidateId,
+          name: candidate?.name ?? 'Candidate',
+          position: candidate?.position ?? candidate?.role ?? 'Role pending',
+          joinDate: startDate,
+          daysUntil,
+        };
+      })
+      .filter((entry): entry is UpcomingJoiner => Boolean(entry))
+      .sort((a, b) => a.joinDate.getTime() - b.joinDate.getTime());
+
+    return entries[0] ?? null;
+  }, [candidates]);
 
   if (isLoading) {
     return (
@@ -326,7 +366,20 @@ export function Analytics() {
             <p className="text-xs text-muted-foreground">Hired / Total applications</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card
+          onClick={upcomingJoiner ? () => navigate(`/candidate/${upcomingJoiner.candidateId}`) : undefined}
+          onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+            if (!upcomingJoiner) return;
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              navigate(`/candidate/${upcomingJoiner.candidateId}`);
+            }
+          }}
+          role={upcomingJoiner ? 'button' : undefined}
+          tabIndex={upcomingJoiner ? 0 : -1}
+          className={upcomingJoiner ? 'cursor-pointer transition-shadow hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary' : undefined}
+          aria-label={upcomingJoiner ? `View ${upcomingJoiner.name}'s profile` : undefined}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <div>
               <CardTitle className="text-sm font-medium">Time to Join</CardTitle>
@@ -334,9 +387,18 @@ export function Analytics() {
             <CalendarDays className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-primary">{daysUntilJoin} days</div>
-            <p className="mt-3 text-sm font-semibold">{mockUpcomingJoiner.name}</p>
-            <p className="text-sm text-muted-foreground">{mockUpcomingJoiner.position}</p>
+            {upcomingJoiner ? (
+              <>
+                <div className="text-2xl font-bold text-primary">Start in {upcomingJoiner.daysUntil} days</div>
+                <p className="mt-3 text-sm font-semibold">{upcomingJoiner.name}</p>
+                <p className="text-sm text-muted-foreground">{upcomingJoiner.position}</p>
+              </>
+            ) : (
+              <>
+                <div className="text-2xl font-bold text-primary">--</div>
+                <p className="mt-3 text-sm text-muted-foreground">No upcoming start dates</p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>

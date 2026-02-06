@@ -75,19 +75,16 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
       try {
         const res = await fetch(`${API_BASE}/job-descriptions/`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data: Array<{ role?: string }> = await res.json();
-        const unique = Array.from(
-          new Set(
-            (data || [])
-              .map(d => (d.role || '').trim())
-              .filter(r => r.length > 0)
-          )
-        ).sort((a, b) => a.localeCompare(b));
-        setRoles(unique);
-        // If a candidate has an existing role not in DB list, preserve it in dropdown
+        const data: Array<{ role?: string; isHidden?: boolean }> = await res.json();
+        const visibleRoles = (data || [])
+          .filter(item => !item?.isHidden)
+          .map(d => (d.role || '').trim())
+          .filter(r => r.length > 0);
+        let unique = Array.from(new Set(visibleRoles)).sort((a, b) => a.localeCompare(b));
         if (selectedPosition && unique.indexOf(selectedPosition) === -1) {
-          setRoles(prev => [selectedPosition, ...prev]);
+          unique = [selectedPosition, ...unique];
         }
+        setRoles(unique);
       } catch (err: any) {
         console.error('Failed to load roles', err);
         setRolesError('Failed to load roles');

@@ -9,11 +9,6 @@ HIRED_ARCHIVE_DAYS = 7
 
 
 async def auto_archive_hired_candidates():
-    """
-    Automatically archive candidates who have been in 'hired' stage for more than 7 days.
-    
-    Sets their stage to 'archived' while preserving hired_at timestamp and status='hired'.
-    """
     try:
         cutoff_date = datetime.utcnow() - timedelta(days=HIRED_ARCHIVE_DAYS)
         

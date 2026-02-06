@@ -1,5 +1,5 @@
 import { useAuth } from '../context/AuthContext';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -71,6 +71,8 @@ export function Notes() {
   const [customTag, setCustomTag] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [candidates, setCandidates] = useState<CandidateLite[]>([]);
+  const [candidateInputValue, setCandidateInputValue] = useState('');
+  const [candidateDropdownOpen, setCandidateDropdownOpen] = useState(false);
   const [allNotes, setAllNotes] = useState<NoteWithCandidate[]>([]);
   const [notePendingDelete, setNotePendingDelete] = useState<NoteWithCandidate | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -213,6 +215,37 @@ export function Notes() {
     }
   };
 
+  useEffect(() => {
+    if (!selectedCandidate) return;
+    const match = candidates.find((c) => c.id === selectedCandidate);
+    if (match) {
+      setCandidateInputValue(match.name);
+    }
+  }, [selectedCandidate, candidates]);
+
+  const candidateSuggestions = useMemo(() => {
+    const term = candidateInputValue.trim().toLowerCase();
+    if (!term) return candidates;
+    return candidates.filter((candidate) =>
+      candidate.name.toLowerCase().includes(term) ||
+      (candidate.position ?? '').toLowerCase().includes(term)
+    );
+  }, [candidates, candidateInputValue]);
+
+  const handleCandidateInputChange = (value: string) => {
+    setCandidateInputValue(value);
+    if (selectedCandidate) {
+      setSelectedCandidate('');
+    }
+    setCandidateDropdownOpen(true);
+  };
+
+  const handleCandidatePick = (candidate: CandidateLite) => {
+    setSelectedCandidate(candidate.id);
+    setCandidateInputValue(candidate.name);
+    setCandidateDropdownOpen(false);
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -236,18 +269,56 @@ export function Notes() {
             <CardContent className="space-y-4">
               <div>
                 <label className="text-sm font-medium mb-2 block">Candidate</label>
-                <Select value={selectedCandidate} onValueChange={setSelectedCandidate}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select candidate..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {candidates.map((candidate) => (
-                      <SelectItem key={candidate.id} value={candidate.id}>
-                        <span>{candidate.name}</span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="relative">
+                  <Input
+                    placeholder="Search candidate..."
+                    value={candidateInputValue}
+                    onChange={(e) => handleCandidateInputChange(e.target.value)}
+                    onFocus={() => setCandidateDropdownOpen(true)}
+                    onBlur={() => setTimeout(() => setCandidateDropdownOpen(false), 120)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const [firstMatch] = candidateSuggestions;
+                        if (firstMatch) {
+                          handleCandidatePick(firstMatch);
+                        }
+                      }
+                      if (e.key === 'Escape') {
+                        setCandidateDropdownOpen(false);
+                        (e.target as HTMLInputElement).blur();
+                      }
+                    }}
+                    aria-autocomplete="list"
+                    aria-expanded={candidateDropdownOpen}
+                  />
+                  {candidateDropdownOpen && (
+                    <div className="absolute z-20 mt-1 w-full rounded-md border border-border/60 bg-popover shadow-lg max-h-64 overflow-y-auto">
+                      {candidateSuggestions.length > 0 ? (
+                        candidateSuggestions.map((candidate) => (
+                          <button
+                            type="button"
+                            key={candidate.id}
+                            className={`w-full px-3 py-2 text-left text-sm hover:bg-muted focus:bg-muted ${selectedCandidate === candidate.id ? 'bg-muted/70' : ''}`}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => handleCandidatePick(candidate)}
+                          >
+                            <div className="flex flex-col">
+                              <span className="font-medium">{candidate.name}</span>
+                              {candidate.position && (
+                                <span className="text-xs text-muted-foreground">{candidate.position}</span>
+                              )}
+                            </div>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-3 py-2 text-sm text-muted-foreground">
+                          No candidates found.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>

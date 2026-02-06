@@ -6,6 +6,7 @@ class JobDescriptionIn(BaseModel):
     department: str
     role: str
     description: str
+    isHidden: bool = False
 
 
 class JobDescriptionOut(JobDescriptionIn):

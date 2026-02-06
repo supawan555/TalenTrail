@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, MouseEvent } from 'react';
+import { useState, useEffect, useMemo, KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -258,10 +258,17 @@ export function Dashboard() {
     : 'Awaiting candidates in this stage';
   const canNavigateToBottleneck = Boolean(currentStageData?.longestCandidateId);
 
-  const handleBottleneckIconClick = (event: MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation();
+  const navigateToBottleneckCandidate = () => {
     if (!currentStageData?.longestCandidateId) return;
     navigate(`/candidate/${currentStageData.longestCandidateId}`);
+  };
+
+  const handleBottleneckCardKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!canNavigateToBottleneck) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      navigateToBottleneckCandidate();
+    }
   };
 
   const activeCandidates = candidates.filter((c) => {
@@ -284,7 +291,9 @@ export function Dashboard() {
         if (!ignore) {
           setMetrics(metricsRes.data);
           setCandidates(Array.isArray(candidatesRes.data) ? candidatesRes.data : []);
-          setJobsCount(Array.isArray(jobsRes.data) ? jobsRes.data.length : 0);
+          const jobsData = Array.isArray(jobsRes.data) ? jobsRes.data : [];
+          const activeJobs = jobsData.filter((job: any) => !job?.isHidden);
+          setJobsCount(activeJobs.length);
           setApplicationsByMonth(Array.isArray(analyticsRes.data?.applicationsByMonth) ? analyticsRes.data.applicationsByMonth : []);
         }
       } catch (e) {
@@ -344,22 +353,18 @@ export function Dashboard() {
     <Card
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onClick={canNavigateToBottleneck ? navigateToBottleneckCandidate : undefined}
+      onKeyDown={handleBottleneckCardKeyDown}
+      role={canNavigateToBottleneck ? 'button' : undefined}
+      tabIndex={canNavigateToBottleneck ? 0 : -1}
+      className={canNavigateToBottleneck ? 'cursor-pointer transition-shadow hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary' : undefined}
+      aria-label={canNavigateToBottleneck
+        ? `View ${currentStageData?.longestCandidateName ?? 'candidate'} in ${currentStageColor.name}`
+        : undefined}
     >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">Bottleneck</CardTitle>
-        <button
-          type="button"
-          onClick={handleBottleneckIconClick}
-          disabled={!canNavigateToBottleneck}
-          className={`rounded-full p-1 text-muted-foreground transition-colors ${
-            canNavigateToBottleneck ? 'hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary' : 'opacity-50 cursor-not-allowed'
-          }`}
-          aria-label={canNavigateToBottleneck
-            ? `View ${currentStageData?.longestCandidateName ?? 'candidate'} in ${currentStageColor.name}`
-            : 'No bottleneck candidate available'}
-        >
-          <AlertTriangle className="h-4 w-4" />
-        </button>
+        <AlertTriangle className={`h-4 w-4 ${canNavigateToBottleneck ? 'text-muted-foreground' : 'opacity-50 text-muted-foreground'}`} />
       </CardHeader>
       <CardContent>
         <div className="flex items-center justify-between">
