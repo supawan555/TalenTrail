@@ -18,6 +18,7 @@ export interface Candidate {
   notes: Note[];
   salary: string;
   availability: string;
+  availableStartDate?: string;
 }
 
 export interface Note {

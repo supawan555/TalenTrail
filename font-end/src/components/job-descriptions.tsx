@@ -35,6 +35,7 @@ export function JobDescriptions() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedJob, setSelectedJob] = useState<JobDescription | null>(null);
   const [showHidden, setShowHidden] = useState(false);
+  const [togglingJobId, setTogglingJobId] = useState<string | null>(null);
 
   
   // Form states
@@ -97,6 +98,7 @@ const filteredJobs = jobDescriptions.filter(job => {
       department: formDepartment,
       role: formRole,
       description: formDescription,
+      isHidden: false,
     };
 
     try {
@@ -127,6 +129,7 @@ const filteredJobs = jobDescriptions.filter(job => {
       department: formDepartment,
       role: formRole,
       description: formDescription,
+      isHidden: selectedJob?.isHidden ?? false,
     };
 
     try {
@@ -180,6 +183,33 @@ const filteredJobs = jobDescriptions.filter(job => {
   const openDeleteDialog = (job: JobDescription) => {
     setSelectedJob(job);
     setShowDeleteDialog(true);
+  };
+
+  const handleToggleVisibility = async (job: JobDescription) => {
+    const nextHidden = !(job.isHidden ?? false);
+    setTogglingJobId(job.id);
+    try {
+      const payload = {
+        department: job.department,
+        role: job.role,
+        description: job.description,
+        isHidden: nextHidden,
+      };
+      const res = await fetch(`${API_BASE}/job-descriptions/${job.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(`Toggle failed (${res.status})`);
+      const updated: JobDescription = await res.json();
+      setJobDescriptions(prev => prev.map(j => j.id === updated.id ? updated : j));
+      toast.success(nextHidden ? 'Job hidden successfully' : 'Job unhidden successfully');
+    } catch (err) {
+      console.error('Toggle visibility failed', err);
+      toast.error('Failed to update job visibility');
+    } finally {
+      setTogglingJobId(null);
+    }
   };
 
   const resetForm = () => {
@@ -317,17 +347,14 @@ const filteredJobs = jobDescriptions.filter(job => {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => {
-                              setJobDescriptions(prev =>
-                                prev.map(j =>
-                                  j.id === job.id
-                                    ? { ...j, isHidden: !j.isHidden }
-                                    : j
-                                )
-                              );
-                            }}
+                            disabled={togglingJobId === job.id}
+                            onClick={() => handleToggleVisibility(job)}
                           >
-                            {job.isHidden ? 'Unhide' : 'Hide'}
+                            {togglingJobId === job.id
+                              ? 'Saving...'
+                              : job.isHidden
+                                ? 'Unhide'
+                                : 'Hide'}
                           </Button>
 
                           <Button
