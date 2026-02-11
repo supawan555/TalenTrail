@@ -1,3 +1,19 @@
+export type CandidateStage =
+  | 'applied'
+  | 'screening'
+  | 'interview'
+  | 'final'
+  | 'hired'
+  | 'rejected'
+  | 'drop-off'
+  | 'archived';
+
+export interface StageHistoryEntry {
+  stage: string;
+  enteredAt?: string;
+  exitedAt?: string | null;
+}
+
 export interface Candidate {
   id: string;
   name: string;
@@ -9,7 +25,7 @@ export interface Candidate {
   experience: string;
   location: string;
   matchScore: number;
-  stage: 'applied' | 'screening' | 'interview' | 'final' | 'hired' | 'rejected' | 'drop-off' | 'archived';
+  stage: CandidateStage;
   appliedDate: string;
   resumeUrl?: string;
   archivedDate?: string;
@@ -19,6 +35,14 @@ export interface Candidate {
   salary: string;
   availability: string;
   availableStartDate?: string;
+  appliedAt?: string;
+  screeningAt?: string;
+  interviewAt?: string;
+  finalAt?: string;
+  hiredAt?: string;
+  rejectedAt?: string;
+  droppedAt?: string;
+  stageHistory?: StageHistoryEntry[];
 }
 
 export interface Note {

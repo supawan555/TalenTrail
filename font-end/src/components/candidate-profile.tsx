@@ -19,7 +19,8 @@ import {
   Edit,
   Trash2,
   ArrowRight,
-  XCircle
+  XCircle,
+  Clock3
 } from 'lucide-react';
 import { Candidate } from '../lib/mock-data';
 const API_BASE = import.meta.env.VITE_API_URL ?? 'https://talentrail-1.onrender.com';
@@ -67,6 +68,17 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
     return Array.isArray(raw) ? raw : [];
   }, [liveCandidate]);
 
+  const timelineEntries = useMemo(() => {
+    const history = Array.isArray(liveCandidate.stageHistory) ? liveCandidate.stageHistory : [];
+    return history
+      .map((entry, idx) => ({
+        key: `${entry.stage ?? 'stage'}-${idx}`,
+        stage: entry.stage ?? '',
+        enteredAt: entry.enteredAt,
+      }))
+      .filter((entry) => entry.stage);
+  }, [liveCandidate.stageHistory]);
+
   // Normalize note type/tag from backend into display label
   const normalizeNoteType = (value: unknown): string => {
     if (!value || typeof value !== 'string') return 'Note';
@@ -105,19 +117,35 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
 
   // Normalize backend payload to frontend Candidate shape
   const normalizeCandidate = (raw: any): Candidate => {
-    const applied = raw?.appliedDate ?? raw?.applied_at ?? raw?.created_at ?? new Date().toISOString();
-    const appliedDate = (() => {
+    const toISO = (value: unknown): string | undefined => {
+      if (!value) return undefined;
       try {
-        const d = new Date(applied);
-        return Number.isNaN(d.getTime()) ? new Date().toISOString().split('T')[0] : d.toISOString().split('T')[0];
+        const parsed = value instanceof Date ? value : new Date(value as string);
+        if (Number.isNaN(parsed.getTime())) return undefined;
+        return parsed.toISOString();
       } catch {
-        return new Date().toISOString().split('T')[0];
+        return undefined;
       }
-    })();
+    };
+
+    const appliedSource = raw?.applied_at ?? raw?.appliedAt ?? raw?.appliedDate ?? raw?.created_at ?? new Date().toISOString();
+    const appliedIso = toISO(appliedSource) ?? new Date().toISOString();
+    const appliedDate = appliedIso.split('T')[0];
     const stage = (raw?.stage ?? raw?.current_state ?? 'applied') as Candidate['stage'];
     const matchScore = typeof raw?.matchScore === 'number'
       ? raw.matchScore
       : (typeof raw?.resumeAnalysis?.match?.score === 'number' ? Math.round(raw.resumeAnalysis.match.score) : 0);
+
+    const historyRaw = raw?.state_history ?? raw?.stage_history ?? [];
+    const stageHistory = Array.isArray(historyRaw)
+      ? historyRaw
+          .map((entry: any) => ({
+            stage: entry?.state ?? entry?.stage ?? '',
+            enteredAt: toISO(entry?.entered_at ?? entry?.enteredAt),
+            exitedAt: toISO(entry?.exited_at ?? entry?.exitedAt) ?? null,
+          }))
+          .filter((entry) => entry.stage)
+      : [];
 
     const base: any = {
       id: raw?.id ?? raw?._id ?? (candidate?.id ?? crypto.randomUUID()),
@@ -141,6 +169,14 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
       salary: raw?.salary ?? '',
       availability: raw?.availability ?? '',
       availableStartDate: raw?.availableStartDate ?? raw?.available_start_date ?? '',
+      appliedAt: appliedIso,
+      screeningAt: toISO(raw?.screening_at ?? raw?.screeningAt),
+      interviewAt: toISO(raw?.interview_at ?? raw?.interviewAt),
+      finalAt: toISO(raw?.final_at ?? raw?.finalAt),
+      hiredAt: toISO(raw?.hired_at ?? raw?.hiredAt),
+      rejectedAt: toISO(raw?.rejected_at ?? raw?.rejectedAt),
+      droppedAt: toISO(raw?.dropped_at ?? raw?.droppedAt),
+      stageHistory,
     };
     if (raw?.resumeAnalysis) {
       base.resumeAnalysis = raw.resumeAnalysis;
@@ -386,6 +422,40 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
                   Excellent match for this position
                 </p>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Stage Timeline */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Clock3 className="w-5 h-5 mr-2" />
+                Stage Timeline
+              </CardTitle>
+              <CardDescription>
+                Captures when the candidate advanced through each stage
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {timelineEntries.length ? (
+                <ol className="space-y-4">
+                  {timelineEntries.map((entry) => (
+                    <li key={entry.key} className="relative pl-6">
+                      <span className="absolute left-1 top-2 h-3 w-3 rounded-full bg-primary" />
+                      <p className="font-medium capitalize">{formatStageName(entry.stage)}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {entry.enteredAt
+                          ? new Date(entry.enteredAt).toLocaleString()
+                          : 'Timestamp unavailable'}
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Timeline data will appear after this candidate moves through the pipeline.
+                </p>
+              )}
             </CardContent>
           </Card>
 
