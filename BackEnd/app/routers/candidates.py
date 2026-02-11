@@ -108,6 +108,9 @@ async def create_candidate(
         payload["hired_at"] = None
         payload["rejected_at"] = None
         payload["dropped_at"] = None
+        payload["screening_at"] = None
+        payload["interview_at"] = None
+        payload["final_at"] = None
         payload["state_history"] = [{
             "state": "applied",
             "entered_at": now_utc,
@@ -237,6 +240,9 @@ async def create_candidate(
     doc["hired_at"] = None
     doc["rejected_at"] = None
     doc["dropped_at"] = None
+    doc["screening_at"] = None
+    doc["interview_at"] = None
+    doc["final_at"] = None
     doc["state_history"] = [{
         "state": "applied",
         "entered_at": now_utc,
@@ -420,6 +426,15 @@ async def update_candidate(candidate_id: str, request: Request):
             updated_history.append(entry_copy)
         updated_history.append({"state": normalized_stage, "entered_at": now_dt, "exited_at": None})
         payload["state_history"] = updated_history
+
+        stage_timestamp_fields = {
+            "screening": "screening_at",
+            "interview": "interview_at",
+            "final": "final_at",
+        }
+        ts_field = stage_timestamp_fields.get(normalized_stage)
+        if ts_field and not existing.get(ts_field):
+            payload[ts_field] = now_dt
 
         if normalized_stage == "hired":
             payload["hired_at"] = now_dt

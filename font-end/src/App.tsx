@@ -99,21 +99,51 @@ function AppContent() {
 
   // Helper to normalize backend payload to frontend Candidate shape
   const normalizeCandidate = useCallback((raw: any): Candidate => {
-    const applied = raw?.appliedDate ?? raw?.applied_at ?? raw?.created_at ?? new Date().toISOString();
-    const appliedDate = (() => {
-      try {
-        const d = new Date(applied);
-        return Number.isNaN(d.getTime()) ? new Date().toISOString().split('T')[0] : d.toISOString().split('T')[0];
-      } catch {
-        return new Date().toISOString().split('T')[0];
+    const toIsoString = (value?: string | Date | null) => {
+      if (!value) {
+        return undefined;
       }
+      try {
+        const date = value instanceof Date ? value : new Date(value);
+        if (Number.isNaN(date.getTime())) {
+          return undefined;
+        }
+        return date.toISOString();
+      } catch {
+        return undefined;
+      }
+    };
+
+    const stageHistory = (() => {
+      const history = raw?.state_history ?? raw?.stageHistory;
+      if (!Array.isArray(history)) {
+        return [];
+      }
+      return history
+        .map((entry: any) => {
+          const stage = entry?.stage ?? entry?.state;
+          const enteredAt = toIsoString(entry?.entered_at ?? entry?.enteredAt);
+          const exitedAt = toIsoString(entry?.exited_at ?? entry?.exitedAt);
+          if (!stage || !enteredAt) {
+            return null;
+          }
+          return {
+            stage,
+            enteredAt,
+            exitedAt: exitedAt ?? null
+          };
+        })
+        .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
     })();
+
+    const appliedIso = toIsoString(raw?.applied_at ?? raw?.appliedAt ?? raw?.appliedDate ?? raw?.created_at) ?? new Date().toISOString();
+    const appliedDate = appliedIso.split('T')[0];
     const stage = (raw?.stage ?? raw?.current_state ?? 'applied') as Candidate['stage'];
     const matchScore = typeof raw?.matchScore === 'number'
       ? raw.matchScore
       : (typeof raw?.resumeAnalysis?.match?.score === 'number' ? Math.round(raw.resumeAnalysis.match.score) : 0);
 
-    const base: any = {
+    const base: Candidate = {
       id: raw?.id ?? raw?._id ?? crypto.randomUUID(),
       name: raw?.name ?? '',
       email: raw?.email ?? '',
@@ -126,19 +156,28 @@ function AppContent() {
       matchScore,
       stage,
       appliedDate,
+      appliedAt: appliedIso,
+      screeningAt: toIsoString(raw?.screening_at ?? raw?.screeningAt),
+      interviewAt: toIsoString(raw?.interview_at ?? raw?.interviewAt),
+      finalAt: toIsoString(raw?.final_at ?? raw?.finalAt),
+      hiredAt: toIsoString(raw?.hired_at ?? raw?.hiredAt),
+      rejectedAt: toIsoString(raw?.rejected_at ?? raw?.rejectedAt),
+      droppedAt: toIsoString(raw?.dropped_at ?? raw?.dropoff_at ?? raw?.droppedAt),
       resumeUrl: raw?.resume_url ?? raw?.resumeUrl ?? undefined,
-      archivedDate: raw?.archivedDate ?? raw?.archived_date ?? undefined,
+      archivedDate: toIsoString(raw?.archived_date ?? raw?.archivedDate),
       archiveReason: raw?.archiveReason ?? raw?.archive_reason ?? undefined,
       skills: Array.isArray(raw?.skills) ? raw.skills : [],
       notes: Array.isArray(raw?.notes) ? raw.notes : [],
       salary: raw?.salary ?? '',
       availability: raw?.availability ?? '',
+      stageHistory
     };
-    // Preserve resumeAnalysis if present so Resume Analysis section can render
+
     if (raw?.resumeAnalysis) {
       base.resumeAnalysis = raw.resumeAnalysis;
     }
-    return base as Candidate;
+
+    return base;
   }, []);
 
   // Fetch candidates from API when the session is ready
@@ -403,7 +442,10 @@ function AppContent() {
           
           <Route path="/dashboard" element={<Dashboard />} />
 
-          <Route path="/pipeline" element={<Pipeline onCandidateSelect={handleCandidateSelect} />} />
+          <Route
+            path="/pipeline"
+            element={<Pipeline onCandidateSelect={handleCandidateSelect} candidates={candidates} />}
+          />
           <Route path="/candidates" element={<Candidates onCandidateSelect={handleCandidateSelect} />} />
           <Route path="/archived-candidates" element={<ArchivedCandidates candidates={candidates} onRestore={handleRestoreCandidate} />} />
 
