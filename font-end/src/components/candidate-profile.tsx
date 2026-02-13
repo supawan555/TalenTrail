@@ -19,8 +19,7 @@ import {
   Edit,
   Trash2,
   ArrowRight,
-  XCircle,
-  Clock3
+  XCircle
 } from 'lucide-react';
 import { Candidate } from '../lib/mock-data';
 const API_BASE = import.meta.env.VITE_API_URL ?? 'https://talentrail-1.onrender.com';
@@ -67,17 +66,6 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
     const raw = (liveCandidate as any)?.notes;
     return Array.isArray(raw) ? raw : [];
   }, [liveCandidate]);
-
-  const timelineEntries = useMemo(() => {
-    const history = Array.isArray(liveCandidate.stageHistory) ? liveCandidate.stageHistory : [];
-    return history
-      .map((entry, idx) => ({
-        key: `${entry.stage ?? 'stage'}-${idx}`,
-        stage: entry.stage ?? '',
-        enteredAt: entry.enteredAt,
-      }))
-      .filter((entry) => entry.stage);
-  }, [liveCandidate.stageHistory]);
 
   // Normalize note type/tag from backend into display label
   const normalizeNoteType = (value: unknown): string => {
@@ -291,6 +279,7 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
   };
 
   const nextStage = getNextStage();
+  const canEditStartDate = liveCandidate.stage === 'hired' || liveCandidate.stage === 'archived';
   const formatStageName = (stage: string) => {
     return stage === 'final' ? 'Final Round' : stage.charAt(0).toUpperCase() + stage.slice(1);
   };
@@ -308,7 +297,7 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
   }, [liveCandidate]);
 
   const handleSaveStartDate = async () => {
-    if (!startDateInput || liveCandidate.stage !== 'hired') return;
+    if (!startDateInput || !canEditStartDate) return;
     setIsSavingStartDate(true);
     try {
       const payload = {
@@ -425,40 +414,6 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
             </CardContent>
           </Card>
 
-          {/* Stage Timeline */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Clock3 className="w-5 h-5 mr-2" />
-                Stage Timeline
-              </CardTitle>
-              <CardDescription>
-                Captures when the candidate advanced through each stage
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {timelineEntries.length ? (
-                <ol className="space-y-4">
-                  {timelineEntries.map((entry) => (
-                    <li key={entry.key} className="relative pl-6">
-                      <span className="absolute left-1 top-2 h-3 w-3 rounded-full bg-primary" />
-                      <p className="font-medium capitalize">{formatStageName(entry.stage)}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {entry.enteredAt
-                          ? new Date(entry.enteredAt).toLocaleString()
-                          : 'Timestamp unavailable'}
-                      </p>
-                    </li>
-                  ))}
-                </ol>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Timeline data will appear after this candidate moves through the pipeline.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
           {/* Time to Join / Available Start Date */}
           <Card>
             <CardHeader>
@@ -467,13 +422,13 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
                 Time to Join
               </CardTitle>
               <CardDescription>
-                {liveCandidate.stage === 'hired'
+                {canEditStartDate
                   ? 'Record confirmed start date'
-                  : 'Unlocks after the candidate is marked as Hired'}
+                  : 'Unlocks after the candidate is marked as Hired or Archived'}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {liveCandidate.stage === 'hired' ? (
+              {canEditStartDate ? (
                 <div className="space-y-4">
                   <div>
                     <Label htmlFor="start-date-input">Available start date</Label>
@@ -498,7 +453,7 @@ export function CandidateProfile({ candidate, onBack, onEdit, onDelete, onNextSt
               ) : (
                 <div className="flex items-center space-x-3 rounded-lg border border-dashed border-muted p-4 text-sm text-muted-foreground">
                   <XCircle className="h-5 w-5 text-muted-foreground" />
-                  <p>Start date will be available once this candidate is hired.</p>
+                  <p>Start date will be available once this candidate is hired or archived.</p>
                 </div>
               )}
             </CardContent>

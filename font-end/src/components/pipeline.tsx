@@ -241,10 +241,10 @@ export function Pipeline({ onCandidateSelect, candidates: propCandidates }: Pipe
         <p className="text-muted-foreground">Track candidates through the hiring process</p>
       </div>
 
-      {/* Search and Filter Controls */}
-      <div className="mb-6 grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-        <div className="relative flex-1 min-w-[250px]">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+      <div className="mb-6 flex flex-row items-center justify-between gap-4">
+        {/* Search */}
+        <div className="relative w-full lg:max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
           <Input
             type="text"
             placeholder="Search by name or position..."
@@ -253,9 +253,11 @@ export function Pipeline({ onCandidateSelect, candidates: propCandidates }: Pipe
             className="pl-10"
           />
         </div>
-        <div className="flex w-full flex-wrap items-center gap-4 md:w-auto md:flex-nowrap md:justify-end">
+
+        {/* Filters */}
+        <div className="flex w-full flex-col gap-4 sm:flex-row lg:w-auto">
           <Select value={positionFilter} onValueChange={setPositionFilter}>
-            <SelectTrigger className="min-w-[180px] flex-1 sm:flex-none">
+            <SelectTrigger className="min-w-[180px]">
               <SelectValue placeholder="Filter by position" />
             </SelectTrigger>
             <SelectContent>
@@ -267,8 +269,9 @@ export function Pipeline({ onCandidateSelect, candidates: propCandidates }: Pipe
               ))}
             </SelectContent>
           </Select>
+
           <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-            <SelectTrigger className="min-w-[180px] flex-1 sm:flex-none">
+            <SelectTrigger className="min-w-[180px]">
               <SelectValue placeholder="Filter by department" />
             </SelectTrigger>
             <SelectContent>
@@ -282,28 +285,35 @@ export function Pipeline({ onCandidateSelect, candidates: propCandidates }: Pipe
         </div>
       </div>
 
-      <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2">
+
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card className="shadow-sm">
-          <CardHeader className="pb-0">
-            <CardTitle className="text-base font-medium">Candidate Distribution</CardTitle>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">
+              Candidate Distribution
+            </CardTitle>
           </CardHeader>
-          <CardContent className="p-6 pt-4">
-            <div className="h-[350px] w-full">
-              <CandidatePieChart data={filteredCandidates} height={350} />
+          <CardContent className="p-4 pt-2">
+            <div className="h-[240px] w-full">
+              <CandidatePieChart data={filteredCandidates} height={240} />
             </div>
           </CardContent>
         </Card>
+
         <Card className="shadow-sm">
-          <CardHeader className="pb-0">
-            <CardTitle className="text-base font-medium">Average Time Between Stages</CardTitle>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">
+              Average Time Between Stages
+            </CardTitle>
           </CardHeader>
-          <CardContent className="p-6 pt-4">
-            <div className="h-[320px] w-full">
-              <StageDurationBarChart data={stageDurationData} height={320} />
+          <CardContent className="p-4 pt-2">
+            <div className="h-[240px] w-full">
+              <StageDurationBarChart data={stageDurationData} height={240} />
             </div>
           </CardContent>
         </Card>
       </div>
+
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {filteredStages.map((stage) => (

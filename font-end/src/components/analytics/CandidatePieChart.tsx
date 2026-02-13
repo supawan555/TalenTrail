@@ -69,7 +69,8 @@ export function CandidatePieChart({ data, height = 300 }: CandidatePieChartProps
             data={chartData}
             dataKey="value"
             nameKey="name"
-            outerRadius={110}
+            outerRadius={90}
+            innerRadius={40}
             label={({ name, value }) => `${name} ${value}`}
           >
             {chartData.map((entry) => {
