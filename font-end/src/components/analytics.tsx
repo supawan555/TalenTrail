@@ -19,6 +19,24 @@ import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import api from '../lib/api';
 
+// Custom tick component for multi-line labels
+const CustomTick = (props: any) => {
+  const { x, y, payload } = props;
+  const words = payload.value.split(' ');
+  
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text x={0} y={12} dy={24} textAnchor="middle" fill="#666" fontSize={14}>
+        {words.map((word: string, index: number) => (
+          <tspan x={0} dy={index === 0 ? 0 : 16} key={index}>
+            {word}
+          </tspan>
+        ))}
+      </text>
+    </g>
+  );
+};
+
 type TimeRange = 'week' | '1month' | '3months' | '6months' | '1year';
 type ChartDimension = 'department' | 'position';
 type UpcomingJoiner = {
@@ -180,11 +198,14 @@ export function Analytics() {
     });
 
     const colors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4'];
-    const data = Object.entries(grouped).map(([dimension, stats], index) => ({
-      [chartDimension]: dimension,
-      avgDays: stats.count > 0 ? Math.round(stats.totalDays / stats.count) : 0,
-      fill: colors[index % colors.length]
-    }));
+    const data = Object.entries(grouped)
+      .filter(([_, stats]) => stats.count > 0)
+      .map(([dimension, stats], index) => ({
+        [chartDimension]: dimension,
+        avgDays: Math.round(stats.totalDays / stats.count),
+        fill: colors[index % colors.length]
+      }))
+      .filter(item => item.avgDays > 0);
 
     console.log('📊 [Analytics] Time to hire data:', data);
     return data;
@@ -204,11 +225,13 @@ export function Analytics() {
     });
 
     const colors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4'];
-    const data = Object.entries(grouped).map(([dimension, count], index) => ({
-      [chartDimension]: dimension,
-      applications: count,
-      fill: colors[index % colors.length]
-    }));
+    const data = Object.entries(grouped)
+      .filter(([_, count]) => count > 0)
+      .map(([dimension, count], index) => ({
+        [chartDimension]: dimension,
+        applications: count,
+        fill: colors[index % colors.length]
+      }));
 
     console.log('📊 [Analytics] Applications by dimension data:', data);
     return data;
@@ -434,10 +457,17 @@ export function Analytics() {
         </CardHeader>
         <CardContent>
           {timeToHireData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={timeToHireData}>
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={timeToHireData} margin={{ bottom: 40 }}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey={chartDimension} />
+                <XAxis 
+                  dataKey={chartDimension} 
+                  tick={<CustomTick />}
+                  interval={0}
+                  height={60}
+                  minTickGap={10}
+                  padding={{ left: 10, right: 10 }}
+                />
                 <YAxis />
                 <Tooltip />
                 <Bar dataKey="avgDays" radius={[4, 4, 0, 0]}>
@@ -448,7 +478,7 @@ export function Analytics() {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+            <div className="h-[350px] flex items-center justify-center text-muted-foreground">
               No hired candidates in selected time range
             </div>
           )}
@@ -463,10 +493,17 @@ export function Analytics() {
         </CardHeader>
         <CardContent>
           {applicationsByDimensionData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={applicationsByDimensionData}>
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={applicationsByDimensionData} margin={{ bottom: 40 }}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey={chartDimension} />
+                <XAxis 
+                  dataKey={chartDimension} 
+                  tick={<CustomTick />}
+                  interval={0}
+                  height={60}
+                  minTickGap={10}
+                  padding={{ left: 10, right: 10 }}
+                />
                 <YAxis />
                 <Tooltip />
                 <Bar dataKey="applications" radius={[4, 4, 0, 0]}>
@@ -477,7 +514,7 @@ export function Analytics() {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+            <div className="h-[350px] flex items-center justify-center text-muted-foreground">
               No applications in selected time range
             </div>
           )}

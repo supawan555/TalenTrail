@@ -179,6 +179,10 @@ async def create_candidate(
                     payload["matchScore"] = match_score
                     print("⭐ [ML] Computed match score (JSON path):", match_score)
                     analysis_block.setdefault("match", {"score": match_score})
+                    # Populate department from job description if not already set
+                    if not payload.get("department") and job_doc.get("department"):
+                        payload["department"] = job_doc.get("department")
+                        print("📂 [ML] Set department from job (JSON path):", payload["department"])
                 else:
                     print("⚠️ [ML] No job description found for role (JSON path):", position_role)
             else:
@@ -277,6 +281,10 @@ async def create_candidate(
                 match_score = match_resume_to_job(resume_text, job_desc_text)
                 match_score = round(float(match_score), 2)
                 print("⭐ [ML] Computed match score (multipart path):", match_score)
+                # Populate department from job description if not already set
+                if not doc.get("department") and job_doc.get("department"):
+                    doc["department"] = job_doc.get("department")
+                    print("📂 [ML] Set department from job (multipart path):", doc["department"])
             else:
                 print("⚠️ [ML] No job description found for role (multipart path):", position)
 
