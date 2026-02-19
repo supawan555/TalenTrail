@@ -35,6 +35,7 @@ export function Pipeline({ onCandidateSelect, candidates: propCandidates }: Pipe
   const [positionFilter, setPositionFilter] = useState('all');
   const [allCandidates, setAllCandidates] = useState<Candidate[]>(propCandidates || []);
 
+  const [expandedStage, setExpandedStage] = useState<string | null>(null);
   const toIsoString = (value?: string | null | Date): string | undefined => {
     if (!value) return undefined;
     try {
@@ -190,7 +191,9 @@ export function Pipeline({ onCandidateSelect, candidates: propCandidates }: Pipe
   }, [filteredCandidates]);
 
   const CandidateCard = ({ candidate }: { candidate: Candidate }) => (
-    <Card className="mb-3 cursor-pointer hover:shadow-md transition-shadow">
+<Card className="w-full h-full hover:shadow-md transition-all duration-200">
+
+
       <CardContent className="p-4">
         <div className="mb-3">
           <div className="min-w-0">
@@ -315,10 +318,37 @@ export function Pipeline({ onCandidateSelect, candidates: propCandidates }: Pipe
       </div>
 
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-        {filteredStages.map((stage) => (
-          <div key={stage.id} className="min-h-[600px]">
-            <Card className={`${stage.color} border-2 border-dashed h-full`}>
+      <div
+  className={`
+    grid gap-4
+    ${expandedStage
+      ? 'grid-cols-1'
+      : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5'}
+  `}
+>
+
+{filteredStages.map((stage) => {
+  const isExpanded = expandedStage === stage.id;
+
+
+  if (expandedStage && !isExpanded) return null;
+
+  return (
+    <div
+      key={stage.id}
+      className={`
+        min-h-[600px]
+        transition-all duration-300
+        ${isExpanded ? 'col-span-full' : ''}
+      `}
+    >
+
+                        <Card
+                onClick={() =>
+                  setExpandedStage(expandedStage === stage.id ? null : stage.id)
+                }
+                className={`${stage.color} border-2 border-dashed h-full cursor-pointer`}
+              >
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium flex items-center justify-between">
                   {stage.name}
@@ -328,8 +358,18 @@ export function Pipeline({ onCandidateSelect, candidates: propCandidates }: Pipe
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-0">
-                <div className="space-y-3">
-                  {stage.candidates.map((candidate) => (
+                  <div
+                    className={
+                      expandedStage === stage.id
+                        ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
+                        : "space-y-3"
+                    }
+                  >
+
+                {(isExpanded
+                    ? stage.candidates
+                    : stage.candidates.slice(0, 7)
+                  ).map((candidate) => (
                     <CandidateCard key={candidate.id} candidate={candidate} />
                   ))}
                 </div>
@@ -341,7 +381,8 @@ export function Pipeline({ onCandidateSelect, candidates: propCandidates }: Pipe
               </CardContent>
             </Card>
           </div>
-        ))}
+            );
+          })}
       </div>
     </div>
   );
