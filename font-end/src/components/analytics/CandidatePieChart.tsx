@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 import type { Candidate } from '../../lib/mock-data';
 
 const STAGE_COLORS: Record<string, string> = {
@@ -64,14 +64,14 @@ export function CandidatePieChart({ data, height = 300 }: CandidatePieChartProps
   return (
     <div className="w-full min-w-0">
       <ResponsiveContainer width="100%" height={height}>
-        <PieChart>
+        <PieChart margin={{ right: 80 }}>
           <Pie
             data={chartData}
             dataKey="value"
             nameKey="name"
             outerRadius={90}
             innerRadius={40}
-            label={({ name, value }) => `${name} ${value}`}
+            labelLine={false}
           >
             {chartData.map((entry) => {
               const colorKey = (entry.stage ?? '').toLowerCase();
@@ -83,6 +83,13 @@ export function CandidatePieChart({ data, height = 300 }: CandidatePieChartProps
             formatter={(value: number, _name, payload) => {
               return [`${value} candidates`, 'Candidates'];
             }}
+          />
+          <Legend
+            layout="vertical"
+            align="right"
+            verticalAlign="middle"
+            iconType="circle"
+            formatter={(value) => value}
           />
         </PieChart>
       </ResponsiveContainer>

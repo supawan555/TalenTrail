@@ -116,9 +116,10 @@ export const calculateAverageStageDuration = (candidates: Candidate[] = []) => {
       if (!aggregate || aggregate.count === 0) {
         return null;
       }
+      const avgDays = aggregate.total / aggregate.count;
       return {
         stage: STAGE_LABELS[stage],
-        avgDays: Number((aggregate.total / aggregate.count).toFixed(1))
+        avgDays: Math.ceil(avgDays)
       };
     })
     .filter((entry): entry is { stage: string; avgDays: number } => Boolean(entry));
