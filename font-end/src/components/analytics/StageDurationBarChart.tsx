@@ -29,8 +29,13 @@ export function StageDurationBarChart({ data, height = 300 }: StageDurationBarCh
         <BarChart data={data}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
           <XAxis dataKey="stage" tickLine={false} axisLine={false} interval={0} tickMargin={10} />
-          <YAxis tickLine={false} axisLine={false} label={{ value: 'Avg Days', angle: -90, position: 'insideLeft' }} />
-          <Tooltip formatter={(value: number) => `${value} days`} />
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            allowDecimals={false}
+            label={{ value: 'Avg Days', angle: -90, position: 'insideLeft' }}
+          />
+          <Tooltip formatter={(value: number) => `${Math.round(value)} days`} />
           <Bar dataKey="avgDays" radius={[6, 6, 0, 0]}>
             {data.map((entry) => {
               const colorKey = entry.stage.toLowerCase();
