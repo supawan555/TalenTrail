@@ -20,9 +20,8 @@ from app.db import job_collection
 from app.db import candidate_notes_collection
 from app.utils.file_storage import save_upload_file, unique_name, UPLOAD_DIR
 from app.ml.resume_extractor import extract_resume_text, extract_resume_data as ml_extract_data
-from app.ml.resume_matcher import match_resume_to_job
+from app.ml.resume_matcher import analyze_resume
 from app.services.resume_extraction import extract_resume_data as legacy_extract_from_path  # kept for fallback
-from app.services.resume_matching import compute_match as legacy_compute_match  # fallback if needed
 import os
 
 router = APIRouter(prefix="/candidates", tags=["candidates"], dependencies=[Depends(get_current_user_from_cookie)])
@@ -174,10 +173,12 @@ async def create_candidate(
                     job_doc = job_collection.find_one({"role": {"$regex": f"^{re.escape(position_role)}$", "$options": "i"}})
                 if job_doc:
                     print("📊 [ML] Matching with Job Description (JSON path):", job_doc.get("role"), "id=", job_doc.get("_id"))
-                    score = match_resume_to_job(resume_text, job_doc.get("description") or "")
-                    match_score = round(float(score), 2)
+                    print("🔎 [ML] Score source function: app.ml.resume_matcher.analyze_resume (JSON path)")
+                    analysis_result = analyze_resume(resume_text, job_doc.get("description") or "")
+                    match_score = round(float((analysis_result or {}).get("final_score") or 0), 2)
                     payload["matchScore"] = match_score
-                    print("⭐ [ML] Computed match score (JSON path):", match_score)
+                    print("⭐ [ML] Computed match score (JSON path) from analyze_resume:", match_score)
+                    analysis_block["match"] = analysis_result
                     analysis_block.setdefault("match", {"score": match_score})
                     # Populate department from job description if not already set
                     if not payload.get("department") and job_doc.get("department"):
@@ -277,10 +278,11 @@ async def create_candidate(
             match_score = None
             if job_doc:
                 print("📊 [ML] Matching with Job Description (multipart path):", job_doc.get("role"), "id=", job_doc.get("_id"))
+                print("🔎 [ML] Score source function: app.ml.resume_matcher.analyze_resume (multipart path)")
                 job_desc_text = job_doc.get("description") or ""
-                match_score = match_resume_to_job(resume_text, job_desc_text)
-                match_score = round(float(match_score), 2)
-                print("⭐ [ML] Computed match score (multipart path):", match_score)
+                analysis_result = analyze_resume(resume_text, job_desc_text)
+                match_score = round(float((analysis_result or {}).get("final_score") or 0), 2)
+                print("⭐ [ML] Computed match score (multipart path) from analyze_resume:", match_score)
                 # Populate department from job description if not already set
                 if not doc.get("department") and job_doc.get("department"):
                     doc["department"] = job_doc.get("department")
@@ -293,7 +295,7 @@ async def create_candidate(
 
             analysis_block = {**extracted}
             if match_score is not None:
-                analysis_block["match"] = {"score": match_score}
+                analysis_block["match"] = analysis_result if 'analysis_result' in locals() else {"final_score": match_score}
             doc["resumeAnalysis"] = analysis_block
             # Also update top-level skills if not provided
             if (not isinstance(doc.get("skills"), list)) or (isinstance(doc.get("skills"), list) and len(doc.get("skills")) == 0):
@@ -480,7 +482,8 @@ async def debug_test_ml(resume_text: str = Form(...), job_role: str = Form(...))
     if not job_doc:
         raise HTTPException(status_code=404, detail="Job role not found")
     job_desc_text = job_doc.get("description") or ""
-    score = match_resume_to_job(resume_text, job_desc_text)
-    score = round(float(score), 2)
-    logger.info(f"[debug_test_ml] score={score} role={job_role} text_len={len(resume_text)}")
+    logger.info("[debug_test_ml] score source function: app.ml.resume_matcher.analyze_resume")
+    analysis_result = analyze_resume(resume_text, job_desc_text)
+    score = round(float((analysis_result or {}).get("final_score") or 0), 2)
+    logger.info(f"[debug_test_ml] score from analyze_resume={score} role={job_role} text_len={len(resume_text)}")
     return {"matchScore": score, "jobRole": job_role, "resumeLength": len(resume_text)}
