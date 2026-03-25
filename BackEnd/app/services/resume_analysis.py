@@ -16,7 +16,7 @@ from typing import Any, Dict, Optional
 
 from ..db import resume_analyses_collection, job_collection
 from .resume_extraction import extract_resume_data
-from .resume_matching import compute_match
+from .resume_matching import analyze_resume
 
 
 def run_external_analyzer(local_path: str) -> Dict[str, Any]:
@@ -67,7 +67,9 @@ def persist_resume_analysis(original_filename: str, server_path: str, public_url
         if job_role:
             job_doc = job_collection.find_one({"role": job_role})
             if job_doc:
-                match_result = compute_match(extracted, job_doc)
+                print("🔎 [ML] Score source function: app.services.resume_matching.analyze_resume")
+                match_result = analyze_resume(extracted, job_doc)
+                print("⭐ [ML] Result from analyze_resume:", match_result.get("score") if isinstance(match_result, dict) else match_result)
 
         record = {
             "file_name": original_filename,
@@ -93,7 +95,9 @@ def analyze_and_match_resume(server_path: str, job_role: Optional[str] = None) -
     if job_role:
         job_doc = job_collection.find_one({"role": job_role})
         if job_doc:
-            match_result = compute_match(extracted, job_doc)
+            print("🔎 [ML] Score source function: app.services.resume_matching.analyze_resume")
+            match_result = analyze_resume(extracted, job_doc)
+            print("⭐ [ML] Result from analyze_resume:", match_result.get("score") if isinstance(match_result, dict) else match_result)
     return {
         "extracted": extracted,
         "match": match_result

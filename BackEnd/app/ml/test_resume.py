@@ -1,4 +1,4 @@
-from app.ml.resume_matcher import analyze_resume
+from resume_matcher import analyze_resume
 
 resume_text = """
 Name: Nattapong R.

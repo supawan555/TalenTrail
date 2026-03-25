@@ -7,7 +7,7 @@ import pyotp
 import uuid
 
 from app.models.auth import (
-    RegisterRequest,
+    User,
     RegisterResponse,
     LoginRequest,
     LoginResponse,
@@ -23,6 +23,7 @@ DEV_FRONTEND_ORIGINS = {
 }
 
 LOCAL_DEV_HOSTS = {"127.0.0.1", "localhost"}
+
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -48,7 +49,7 @@ def _cookie_options(request: Request) -> dict:
 
 
 @router.post("/register", response_model=RegisterResponse)
-async def auth_register(req: RegisterRequest):
+async def auth_register(req: User):
     email = req.email.strip().lower()
     if not email or not req.password:
         raise HTTPException(status_code=400, detail="Email and password are required")
@@ -144,8 +145,6 @@ async def auth_verify_otp(req: VerifyOtpRequest, response: Response, request: Re
         secure=cookie_opts["secure"],
         path="/",
     )
-
-
     # อัปเดต Session ว่าใช้แล้ว
     auth_sessions_collection.update_one(
         {"_id": session["_id"]},

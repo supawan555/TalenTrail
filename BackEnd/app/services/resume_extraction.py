@@ -1,18 +1,4 @@
-"""Resume extraction module: parse PDF/DOCX resumes into structured fields.
 
-Contract:
-    extract_resume_data(path: str) -> dict with keys:
-        name, email, phone, skills(list[str]), experience(str), raw_text(str)
-
-Implementation Notes:
-- Uses pdfplumber for PDF text extraction.
-- Falls back to PyPDF2 if pdfplumber fails.
-- Basic regex for email / phone.
-- spaCy NER (PERSON) for name; first PERSON occurrence assumed candidate name.
-- Skills keyword matching (case-insensitive) from a configurable list.
-
-If spaCy model is missing, name extraction will be skipped gracefully.
-"""
 from __future__ import annotations
 import re
 from pathlib import Path
@@ -156,3 +142,19 @@ def extract_resume_data(path: str) -> Dict[str, Any]:
     }
 
 __all__ = ['extract_resume_data']
+
+"""Resume extraction module: parse PDF/DOCX resumes into structured fields.
+
+Contract:
+    extract_resume_data(path: str) -> dict with keys:
+        name, email, phone, skills(list[str]), experience(str), raw_text(str)
+
+Implementation Notes:
+- Uses pdfplumber for PDF text extraction.
+- Falls back to PyPDF2 if pdfplumber fails.
+- Basic regex for email / phone.
+- spaCy NER (PERSON) for name; first PERSON occurrence assumed candidate name.
+- Skills keyword matching (case-insensitive) from a configurable list.
+
+If spaCy model is missing, name extraction will be skipped gracefully.
+"""
