@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from datetime import datetime
+from datetime import datetime, timezone
 from app.db import candidate_collection
 from app.services.auth import get_current_user_from_cookie
 
@@ -25,13 +25,13 @@ def get_dashboard_metrics(current_user: dict = Depends(get_current_user_from_coo
     }
     """
     # Time boundaries for current month (UTC)
-    now = datetime.utcnow()
-    start_month = datetime(now.year, now.month, 1)
+    now = datetime.now(timezone.utc)
+    start_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     next_month = datetime(now.year + (1 if now.month == 12 else 0), 1 if now.month == 12 else now.month + 1, 1)
 
     # Hired this month (includes both active hired and archived hired candidates)
-    # Counts candidates where hired_at is within this month, regardless of current stage
     hired_this_month = candidate_collection.count_documents({
+        "current_state": "hired", # <--- กรองเฉพาะคนที่ยังเป็นพนักงานอยู่จริง
         "hired_at": {"$gte": start_month, "$lt": next_month}
     })
 
