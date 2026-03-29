@@ -6,7 +6,7 @@ import os
 
 from app.db import resume_analyses_collection, candidate_collection, job_collection
 from app.utils.file_storage import unique_name, save_upload_file, UPLOAD_DIR
-from app.services.resume_analysis import run_external_analyzer
+from app.services.resume_pipeline import analyze_with_job
 
 router = APIRouter(prefix="/match", tags=["matching"])
 
@@ -46,7 +46,7 @@ async def analyze_resume(candidate_id: Optional[str] = Form(None), job_id: Optio
     if not local_path:
         raise HTTPException(status_code=400, detail="No resume available for analysis")
 
-    analysis = run_external_analyzer(local_path)
+    analysis = analyze_with_job(local_path, job)
     doc = {
         "candidate_id": candidate.get("_id") if candidate else None,
         "job_id": job.get("_id") if job else None,
