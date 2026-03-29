@@ -9,11 +9,13 @@ Debug endpoint available at /candidates/debug/test-ml for manual score checks.
 """
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request, Depends
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from bson import ObjectId
 import logging
 import json
 import re
+from app.utils.file_handler import handle_candidate_uploads
+from app.services.candidates import process_candidate_ml_pipeline, init_candidate_metadata
 from ..services.auth import get_current_user_from_cookie, require_role
 from app.db import candidate_collection
 from app.db import job_collection
@@ -34,28 +36,6 @@ if not logger.handlers:
     logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
-
-def _is_placeholder_phone(value: Optional[str]) -> bool:
-    """Heuristic check to decide if a phone looks like a placeholder.
-
-    Rules:
-    - empty or None
-    - common mock strings like 'N/A', 'none'
-    - specific samples: '+1 234 567 890', '+1 234 567 8900'
-    - after stripping non-digits, length < 9 or obvious sequences like 1234567890/0123456789
-    """
-    if not value:
-        return True
-    s = value.strip().lower()
-    if s in {"n/a", "na", "none", "unknown"}:
-        return True
-    if s in {"+1 234 567 890", "+1 234 567 8900"}:
-        return True
-    digits = re.sub(r"\D", "", s)
-    if digits in {"", "1234567890", "0123456789"}:
-        return True
-    return len(digits) < 9
-
 # Show List candidates
 @router.get("")
 async def list_candidates(
@@ -67,13 +47,12 @@ async def list_candidates(
     # Frontend expects a raw array (not wrapped) based on candidates.tsx
     return items
 
-
 # Backward-compatible trailing-slash routes to avoid 307 redirects
 @router.get("/")
 async def list_candidates_slash():
     return await list_candidates()
 
-# Show on Terminal for Checking Log
+
 @router.post("")
 async def create_candidate(
     request: Request,
@@ -88,231 +67,43 @@ async def create_candidate(
 ):
     content_type = request.headers.get("content-type", "").lower()
 
-    # JSON payload (from frontend add-candidate flow)
-    if content_type.startswith("application/json"):
+    # 1. รวมข้อมูล (Normalizing Data)
+    if "application/json" in content_type:
         payload = await request.json()
-        if not isinstance(payload, dict):
-            raise HTTPException(status_code=400, detail="Invalid JSON payload")
-        payload.pop("id", None)  # let Mongo assign _id
-        # Never trust client-sent matchScore; always recompute server-side
-        if "matchScore" in payload:
-            payload.pop("matchScore", None)
-        now_utc = datetime.utcnow()
-        payload.setdefault("created_at", now_utc.isoformat())
-        payload.setdefault("status", "active")
-        # --- Dashboard state tracking (server-side override) ---
-        # Always inject these values; do not trust/keep client values
-        payload["applied_at"] = now_utc  # datetime for Mongo date ops
-        payload["current_state"] = "applied"
-        payload["hired_at"] = None
-        payload["rejected_at"] = None
-        payload["dropped_at"] = None
-        payload["screening_at"] = None
-        payload["interview_at"] = None
-        payload["final_at"] = None
-        payload["state_history"] = [{
-            "state": "applied",
-            "entered_at": now_utc,
-            "exited_at": None,
-        }]
-        # Normalize resume url field name for consistency
-        if "resumeUrl" in payload and "resume_url" not in payload:
-            payload["resume_url"] = payload.get("resumeUrl")
-        # Attempt ML pipeline even for JSON-only submissions (using resume_url if provided)
-        try:
-            position_role = payload.get("position") or payload.get("role")
-            resume_url = payload.get("resume_url") or payload.get("resumeUrl")
-            incoming_analysis = payload.get("resumeAnalysis") or {}
-            resume_text = incoming_analysis.get("raw_text") or incoming_analysis.get("text_snippet") or ""
+        resume_url = payload.get("resumeUrl")
 
-            resume_fs_path = None
-            if resume_url and isinstance(resume_url, str) and resume_url.startswith("/uploads/"):
-                filename = resume_url.split("/uploads/")[-1].strip()
-                tentative_path = os.path.join(UPLOAD_DIR, filename)
-                if os.path.exists(tentative_path):
-                    resume_fs_path = tentative_path
-                    print("📄 [ML] Extracting resume text from (JSON path):", resume_fs_path)
-                    # Only extract if we don't already have raw_text
-                    if not resume_text:
-                        resume_text = extract_resume_text(resume_fs_path)
-                        print("📄 [ML] Resume text length (JSON path):", len(resume_text))
-                else:
-                    print("⚠️ [ML] Resume file not found for", tentative_path)
-            else:
-                if resume_url:
-                    print("⚠️ [ML] Unsupported resume_url format (JSON path):", resume_url)
+        if resume_url:
+            relative_path = resume_url.lstrip("/")
+            full_path = os.path.abspath(relative_path)
+            payload["resume_path"] = full_path
+        print(f"Received JSON payload: {payload}")
+    else:
+        # ถ้ามาเป็น Form-data ก็จับยัดใส่ dict
+        res_path, res_url, ava_url = handle_candidate_uploads(resume, avatar)
+        payload = {
+            "name": name, "email": email, "phone": phone, 
+            "resume_path": res_path, "resume_url": res_url, "avatar": ava_url,
+            "position": position, "experience": experience
+        }
+        
 
-            extracted_struct = {}
-            if resume_text:
-                extracted_struct = ml_extract_data(resume_text)
-                print("🧠 [ML] Extracted fields (JSON path):", json.dumps(extracted_struct, indent=2, ensure_ascii=False))
-                # Enrich top-level fields even if job match fails
-                if (not payload.get("email") or payload.get("email") == "candidate@example.com") and extracted_struct.get("email"):
-                    payload["email"] = extracted_struct.get("email")
-                # Replace phone if it's missing or a known placeholder
-                if _is_placeholder_phone(payload.get("phone")) and extracted_struct.get("phone"):
-                    payload["phone"] = extracted_struct.get("phone")
-                if not payload.get("name") and extracted_struct.get("name"):
-                    payload["name"] = extracted_struct.get("name")
-                if (not isinstance(payload.get("skills"), list)) or (isinstance(payload.get("skills"), list) and len(payload.get("skills")) == 0):
-                    if extracted_struct.get("skills"):
-                        payload["skills"] = extracted_struct.get("skills")
+    # 2. จัดการ Metadata & Cleanup
+    payload.pop("id", None)
+    payload.pop("matchScore", None)
+    payload = init_candidate_metadata(payload)
 
-            # Prepare analysis block regardless of matching outcome
-            analysis_block = payload.get("resumeAnalysis") or {}
-            if extracted_struct:
-                # Only set raw fields if not already present to avoid clobbering client-provided analysis
-                for k, v in extracted_struct.items():
-                    if k not in analysis_block or analysis_block.get(k) in (None, ""):
-                        analysis_block[k] = v
+    # 3. รัน ML Pipeline 
+    payload = await process_candidate_ml_pipeline(payload, payload.get("resume_path"))
+    
+    # 4. บันทึกลง DB
+    result = candidate_collection.insert_one(payload)
 
-            if position_role and resume_text:
-                job_doc = job_collection.find_one({"role": position_role})
-                if not job_doc:
-                    # Case-insensitive exact match fallback
-                    job_doc = job_collection.find_one({"role": {"$regex": f"^{re.escape(position_role)}$", "$options": "i"}})
-                if job_doc:
-                    print("📊 [ML] Matching with Job Description (JSON path):", job_doc.get("role"), "id=", job_doc.get("_id"))
-                    print("🔎 [ML] Score source function: app.ml.resume_matcher.analyze_resume (JSON path)")
-                    analysis_result = analyze_resume(resume_text, job_doc.get("description") or "")
-                    match_score = round(float((analysis_result or {}).get("final_score") or 0), 2)
-                    payload["matchScore"] = match_score
-                    print("⭐ [ML] Computed match score (JSON path) from analyze_resume:", match_score)
-                    analysis_block["match"] = analysis_result
-                    analysis_block.setdefault("match", {"score": match_score})
-                    # Populate department from job description if not already set
-                    if not payload.get("department") and job_doc.get("department"):
-                        payload["department"] = job_doc.get("department")
-                        print("📂 [ML] Set department from job (JSON path):", payload["department"])
-                else:
-                    print("⚠️ [ML] No job description found for role (JSON path):", position_role)
-            else:
-                print("⚠️ [ML] Insufficient data to compute matchScore (JSON path): position or resume_text missing")
-
-            # Persist analysis block if we have extracted content or match score
-            if analysis_block:
-                payload["resumeAnalysis"] = analysis_block
-        except Exception as e:
-            print("❌ [ML] Exception in JSON pipeline:", e)
-            logger.warning(f"Failed to compute matchScore (JSON path): {e}")
-
-        res = candidate_collection.insert_one(payload)
-        # PyMongo may mutate the original dict and add _id; remove it for JSON response
-        if "_id" in payload:
-            payload.pop("_id", None)
-        payload["id"] = str(res.inserted_id)
-        return payload
-
-    # Multipart form-data (optional file upload path)
-    resume_path = None
-    public_url = None
-    avatar_url = None
-    if resume is not None:
-        filename = unique_name("resume", resume.filename or "resume.pdf", ".pdf")
-        dest = os.path.join(UPLOAD_DIR, filename)
-        save_upload_file(resume, dest)
-        resume_path = dest
-        public_url = f"/uploads/{filename}"
-    if avatar is not None:
-        afn = unique_name("avatar", avatar.filename or "avatar.png", os.path.splitext(avatar.filename or "avatar.png")[1])
-        adest = os.path.join(UPLOAD_DIR, afn)
-        save_upload_file(avatar, adest)
-        avatar_url = f"/uploads/{afn}"
-
-    if not name or not email:
-        raise HTTPException(status_code=400, detail="name and email are required")
-
-    now_utc = datetime.utcnow()
-    doc = {
-        "name": name,
-        "email": email,
-        # Apply placeholder detection before persisting phone (will be enriched later if resume provided)
-        "phone": None if _is_placeholder_phone(phone) else phone,
-        "notes": notes,
-        "position": position,
-        "experience": experience,
-        "avatar": avatar_url,
-        "resume_path": resume_path,
-        "resume_url": public_url,
-        "created_at": now_utc.isoformat(),
-        "status": "active",
-    }
-
-    # --- Dashboard state tracking (server-side override) ---
-    # Always inject these values on create; ignore client-provided ones
-    doc["applied_at"] = now_utc  # datetime for Mongo date ops
-    doc["current_state"] = "applied"
-    doc["hired_at"] = None
-    doc["rejected_at"] = None
-    doc["dropped_at"] = None
-    doc["screening_at"] = None
-    doc["interview_at"] = None
-    doc["final_at"] = None
-    doc["state_history"] = [{
-        "state": "applied",
-        "entered_at": now_utc,
-        "exited_at": None,
-    }]
-
-    # Run ML extraction & matching if we have a resume and position (multipart form path)
-    try:
-        if resume_path and position:
-            print("📄 [ML] Extracting resume text from (multipart path):", resume_path)
-            resume_text = extract_resume_text(resume_path)
-            print("📄 [ML] Resume text length (multipart path):", len(resume_text))
-            extracted = ml_extract_data(resume_text) if resume_text else {}
-            print("🧠 [ML] Extracted fields (multipart path):", json.dumps(extracted, indent=2, ensure_ascii=False))
-
-            # Enrich candidate fields if missing (do not override provided ones)
-            # Enrich name/email if missing. For phone, also replace placeholders.
-            if not doc.get("name") and extracted.get("name"):
-                doc["name"] = extracted.get("name")
-            if not doc.get("email") and extracted.get("email"):
-                doc["email"] = extracted.get("email")
-            if _is_placeholder_phone(doc.get("phone")) and extracted.get("phone"):
-                doc["phone"] = extracted.get("phone")
-
-            job_doc = job_collection.find_one({"role": position})
-            if not job_doc:
-                job_doc = job_collection.find_one({"role": {"$regex": f"^{re.escape(position)}$", "$options": "i"}})
-            match_score = None
-            if job_doc:
-                print("📊 [ML] Matching with Job Description (multipart path):", job_doc.get("role"), "id=", job_doc.get("_id"))
-                print("🔎 [ML] Score source function: app.ml.resume_matcher.analyze_resume (multipart path)")
-                job_desc_text = job_doc.get("description") or ""
-                analysis_result = analyze_resume(resume_text, job_desc_text)
-                match_score = round(float((analysis_result or {}).get("final_score") or 0), 2)
-                print("⭐ [ML] Computed match score (multipart path) from analyze_resume:", match_score)
-                # Populate department from job description if not already set
-                if not doc.get("department") and job_doc.get("department"):
-                    doc["department"] = job_doc.get("department")
-                    print("📂 [ML] Set department from job (multipart path):", doc["department"])
-            else:
-                print("⚠️ [ML] No job description found for role (multipart path):", position)
-
-            if match_score is not None:
-                doc["matchScore"] = match_score
-
-            analysis_block = {**extracted}
-            if match_score is not None:
-                analysis_block["match"] = analysis_result if 'analysis_result' in locals() else {"final_score": match_score}
-            doc["resumeAnalysis"] = analysis_block
-            # Also update top-level skills if not provided
-            if (not isinstance(doc.get("skills"), list)) or (isinstance(doc.get("skills"), list) and len(doc.get("skills")) == 0):
-                if extracted.get("skills"):
-                    doc["skills"] = extracted.get("skills")
-        else:
-            print("⚠️ [ML] Skipping ML pipeline (multipart path) resume_path or position missing")
-    except Exception as e:
-        print("❌ [ML] Exception in multipart pipeline:", e)
-        logger.warning(f"ML pipeline failed (multipart path): {e}")
-
-    result = candidate_collection.insert_one(doc)
-    # Remove Mongo's _id added by PyMongo to avoid JSON serialization issues
-    if "_id" in doc:
-        doc.pop("_id", None)
-    doc["id"] = str(result.inserted_id)
-    return doc
+    # ดึงค่า ID มาเก็บไว้เป็น String ก่อน
+    new_id = str(result.inserted_id)
+    if "_id" in payload:
+        payload.pop("_id")
+    payload["id"] = new_id
+    return payload
 
 
 @router.post("/")
@@ -347,10 +138,24 @@ async def delete_candidate(candidate_id: str):
         oid = ObjectId(candidate_id)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid candidate id")
-    res = candidate_collection.delete_one({"_id": oid})
-    if res.deleted_count == 0:
+    # 1. ค้นหาข้อมูลก
+    candidate = candidate_collection.find_one({"_id": oid})
+    if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
-    return {"deleted": True}
+
+    # 2. ลบไฟล์จริงในเครื่อง
+    resume_path = candidate.get("resume_path")
+    if resume_path and os.path.exists(resume_path):
+        try:
+            os.remove(resume_path)
+            print(f"🗑️ Deleted file: {resume_path}")
+        except Exception as e:
+            print(f"Could not delete file: {e}")
+
+    # 3. ลบข้อมูลใน MongoDB
+    candidate_collection.delete_one({"_id": oid})
+
+    return {"deleted": True, "message": "Candidate and associated files removed"}
 
 
 @router.get("/{candidate_id}")
@@ -362,14 +167,14 @@ async def get_candidate(candidate_id: str):
     doc = candidate_collection.find_one({"_id": oid})
     if not doc:
         raise HTTPException(status_code=404, detail="Candidate not found")
-    # Attach notes from candidate_notes collection
+    # เอา note มาด้วย
     notes = []
     for n in candidate_notes_collection.find({"candidate_id": oid}).sort("timestamp", -1):
         note = {
             "id": str(n.get("_id")),
             "author": str(n.get("author", "")),
             "content": str(n.get("content", "")),
-            "timestamp": (n.get("timestamp") or datetime.utcnow()).isoformat(),
+            "timestamp": (n.get("timestamp") or datetime.now(timezone.utc)).isoformat(),
             "type": str(n.get("type", "")),
         }
         notes.append(note)
@@ -474,16 +279,3 @@ async def update_candidate(candidate_id: str, request: Request):
     doc["id"] = str(doc.pop("_id"))
     return doc
 
-
-@router.post("/debug/test-ml")
-async def debug_test_ml(resume_text: str = Form(...), job_role: str = Form(...)):
-    """Debug endpoint: supply raw resume_text and a job role to compute match score."""
-    job_doc = job_collection.find_one({"role": job_role})
-    if not job_doc:
-        raise HTTPException(status_code=404, detail="Job role not found")
-    job_desc_text = job_doc.get("description") or ""
-    logger.info("[debug_test_ml] score source function: app.ml.resume_matcher.analyze_resume")
-    analysis_result = analyze_resume(resume_text, job_desc_text)
-    score = round(float((analysis_result or {}).get("final_score") or 0), 2)
-    logger.info(f"[debug_test_ml] score from analyze_resume={score} role={job_role} text_len={len(resume_text)}")
-    return {"matchScore": score, "jobRole": job_role, "resumeLength": len(resume_text)}
