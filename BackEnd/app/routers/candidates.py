@@ -23,7 +23,6 @@ from app.db import candidate_notes_collection
 from app.utils.file_storage import save_upload_file, unique_name, UPLOAD_DIR
 from app.ml.resume_extractor import extract_resume_text, extract_resume_data as ml_extract_data
 from app.ml.resume_matcher import analyze_resume
-from app.services.resume_extraction import extract_resume_data as legacy_extract_from_path  # kept for fallback
 import os
 
 router = APIRouter(prefix="/candidates", tags=["candidates"], dependencies=[Depends(get_current_user_from_cookie)])
