@@ -1,4 +1,4 @@
-# filepath: app/ml/resume_extractor.py
+# app/ml/resume_extractor.py
 import fitz  # PyMuPDF
 import re
 import os
@@ -21,9 +21,9 @@ try:
             skill = line.strip().lower()
             if skill:
                 KNOWN_SKILLS.add(skill)
-    print(f"🤖 [ML] Loaded {len(KNOWN_SKILLS)} skills from file.")
+    print(f"[ML] Loaded {len(KNOWN_SKILLS)} skills from file.")
 except Exception as e:
-    print(f"⚠️ [ML] Warning: skills.txt not found ({e}). Using default set.")
+    print(f"[ML] Warning: skills.txt not found ({e}). Using default set.")
     KNOWN_SKILLS = {'python', 'java', 'sql', 'react', 'javascript'} # Default กันตาย
 
 # 2. ฟังก์ชันทำความสะอาด (จาก Code ของเรา)
@@ -43,7 +43,7 @@ def extract_resume_text(file_path: str) -> str:
         doc.close()
         return text_content
     except Exception as e:
-        print(f"❌ Error reading PDF: {e}")
+        print(f"[ML] Error reading PDF: {e}")
         return ""
 
 # 4. ฟังก์ชันสกัดข้อมูล (รวมร่าง)
