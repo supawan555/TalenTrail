@@ -8,12 +8,12 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
 @router.get("/profile") 
-async def get_dashboard_root(current_user: dict = Depends(get_current_user_from_cookie)):
+def get_dashboard_root(current_user: dict = Depends(get_current_user_from_cookie)):
     return current_user
 
 
 @router.get("/metrics")
-async def get_dashboard_metrics(current_user: dict = Depends(get_current_user_from_cookie)):
+def get_dashboard_metrics(current_user: dict = Depends(get_current_user_from_cookie)):
     """Return dashboard metrics computed from REAL MongoDB data.
 
     Response:
@@ -97,7 +97,7 @@ async def get_dashboard_metrics(current_user: dict = Depends(get_current_user_fr
 
 
 @router.get("/analytics")
-async def get_dashboard_analytics(current_user: dict = Depends(get_current_user_from_cookie)):
+def get_dashboard_analytics(current_user: dict = Depends(get_current_user_from_cookie)):
     """Return applications and hires grouped by month for last 6 months.
 
     Shape:
