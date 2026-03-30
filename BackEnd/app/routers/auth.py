@@ -24,9 +24,7 @@ DEV_FRONTEND_ORIGINS = {
 
 LOCAL_DEV_HOSTS = {"127.0.0.1", "localhost"}
 
-
 router = APIRouter(prefix="/auth", tags=["auth"])
-
 
 def _cookie_options(request: Request) -> dict:
     """Determine SameSite/Secure flags respecting reverse proxies."""
@@ -46,7 +44,6 @@ def _cookie_options(request: Request) -> dict:
         return {"samesite": "none", "secure": True}
 
     return {"samesite": "lax", "secure": False}
-
 
 @router.post("/register", response_model=RegisterResponse)
 async def auth_register(req: User):
@@ -71,7 +68,6 @@ async def auth_register(req: User):
     issuer = os.getenv("TALENTTAIL_TOTP_ISSUER", "TalentTail")
     otpauth_url = pyotp.TOTP(secret).provisioning_uri(name=email, issuer_name=issuer)
     return RegisterResponse(message="Registered successfully", otpauth_url=otpauth_url, secret=secret)
-
 
 @router.post("/login", response_model=LoginResponse)
 async def auth_login(req: LoginRequest, response: Response, request: Request):
@@ -107,7 +103,6 @@ async def auth_login(req: LoginRequest, response: Response, request: Request):
     # Default: require OTP flow for non-admin users
     token = create_pending_session(user_id=user["_id"])
     return LoginResponse(otp_required=True, pendingToken=token)
-
 
 @router.post("/verify-otp")
 async def auth_verify_otp(req: VerifyOtpRequest, response: Response, request: Request):
@@ -152,6 +147,7 @@ async def auth_verify_otp(req: VerifyOtpRequest, response: Response, request: Re
     )
     # Return แค่ message (Token อยู่ใน Cookie แล้ว)
     return {"message": "Login successful", "role": user.get("role")}
+
 
     # เพิ่ม Logout ให้ด้วย
 @router.post("/logout")
