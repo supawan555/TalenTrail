@@ -18,7 +18,7 @@ const DEFAULT_TAGS = [
     "Approved"
 ];
 
-export interface NoteOut {
+interface NoteOut {
     id: string;
     author: string;
     content: string;
@@ -27,7 +27,7 @@ export interface NoteOut {
     candidate_id: string;
 }
 
-export interface CandidateLite {
+interface CandidateLite {
     id: string;
     name: string;
     position?: string;
@@ -35,7 +35,7 @@ export interface CandidateLite {
     stage?: string;
 }
 
-export const Notes = () => {
+export function Notes() {
 
     const handleCandidateInputChange = (value: string) => {
         setCandidateInputValue(value);
