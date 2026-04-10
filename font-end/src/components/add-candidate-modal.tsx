@@ -322,14 +322,14 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
                       {(resumeFile.size / 1024 / 1024).toFixed(2)} MB
                     </p>
                   </div>
-<button
+                  <Button
                     type="button"
                     // รวม Base + ghost + sm
                     className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 h-8 gap-1.5 px-3 has-[>svg]:px-2.5"
                     onClick={() => setResumeFile(null)}
                   >
                     <X className="h-4 w-4" />
-                  </button>
+                  </Button>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -337,14 +337,14 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
                   <div>
                     <p>Drag and drop a PDF file here, or</p>
                     <label>
-                      <button
+                      <Button
                         type="button"
                         // รวม Base + outline + sm + mt-2
                         className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive border bg-background text-foreground hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 h-8 gap-1.5 px-3 has-[>svg]:px-2.5 mt-2"
                         onClick={() => resumeInputRef.current?.click()}
                       >
                         Browse Files
-                      </button>
+                      </Button>
                       <input
                         id="resume-upload"
                         type="file"
@@ -363,15 +363,15 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
 
           {/* Form Actions */}
           <div className="flex justify-end space-x-2 pt-4">
-            <button 
+            <Button 
               type="button" 
               // รวม Base + outline + default size
               className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive border bg-background text-foreground hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 h-9 px-4 py-2 has-[>svg]:px-3"
               onClick={handleClose}
             >
               Cancel
-            </button>
-            <button 
+            </Button>
+            <Button 
               type="submit" 
               disabled={form.formState.isSubmitting}
               // รวม Base + default variant + default size
@@ -381,7 +381,7 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
                 ? (isEditMode ? 'Updating...' : 'Adding...') 
                 : (isEditMode ? 'Update Candidate' : 'Add Candidate')
               }
-            </button>
+            </Button>
           </div>
         </form>
       </DialogContent>
