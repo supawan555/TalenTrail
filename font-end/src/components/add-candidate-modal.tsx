@@ -324,8 +324,8 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
                   </div>
                   <Button
                     type="button"
-                    variant="ghost"
-                    size="sm"
+                    // รวม Base + ghost + sm
+                    className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 h-8 gap-1.5 px-3 has-[>svg]:px-2.5"
                     onClick={() => setResumeFile(null)}
                   >
                     <X className="h-4 w-4" />
@@ -339,21 +339,20 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
                     <label>
                       <Button
                         type="button"
-                        variant="outline"
-                        size="sm"
-                        className="mt-2"
+                        // รวม Base + outline + sm + mt-2
+                        className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive border bg-background text-foreground hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 h-8 gap-1.5 px-3 has-[>svg]:px-2.5 mt-2"
                         onClick={() => resumeInputRef.current?.click()}
                       >
                         Browse Files
                       </Button>
-                          <input
-                            id="resume-upload"
-                            type="file"
-                            accept="application/pdf,.pdf"
-                            onChange={handleFileChange}
-                            className="sr-only"
-                            ref={resumeInputRef}
-                          />
+                      <input
+                        id="resume-upload"
+                        type="file"
+                        accept="application/pdf,.pdf"
+                        onChange={handleFileChange}
+                        className="sr-only"
+                        ref={resumeInputRef}
+                      />
                     </label>
                   </div>
                   <p className="text-xs text-muted-foreground">PDF files only, max 10MB</p>
@@ -364,10 +363,20 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
 
           {/* Form Actions */}
           <div className="flex justify-end space-x-2 pt-4">
-            <Button type="button" variant="outline" onClick={handleClose}>
+            <Button 
+              type="button" 
+              // รวม Base + outline + default size
+              className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive border bg-background text-foreground hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 h-9 px-4 py-2 has-[>svg]:px-3"
+              onClick={handleClose}
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={form.formState.isSubmitting}>
+            <Button 
+              type="submit" 
+              disabled={form.formState.isSubmitting}
+              // รวม Base + default variant + default size
+              className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2 has-[>svg]:px-3"
+            >
               {form.formState.isSubmitting 
                 ? (isEditMode ? 'Updating...' : 'Adding...') 
                 : (isEditMode ? 'Update Candidate' : 'Add Candidate')
