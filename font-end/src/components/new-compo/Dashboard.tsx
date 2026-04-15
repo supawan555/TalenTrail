@@ -6,7 +6,27 @@ import { Badge } from '../ui/badge'
 import { Progress } from '../ui/progress'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { Users, Briefcase, AlertTriangle, Target, Clock, TrendingDown, TrendingUp } from 'lucide-react'
-import { STAGE_COLORS, StageDelay, formatDaysLabel } from '../hooks/useDashboard'
+
+export type StageDelay = {
+  stage: string
+  averageDays: number
+  longestDays: number
+  longestCandidateId?: string
+  longestCandidateName?: string
+}
+
+export const STAGE_COLORS = {
+  applied: { bg: '#E3F2FD', text: '#2196F3', name: 'Applied' },
+  screening: { bg: '#FFF9C4', text: '#FBC02D', name: 'Screening' },
+  interview: { bg: '#F3E5F5', text: '#7E57C2', name: 'Interview' },
+  final: { bg: '#FFE0B2', text: '#FB8C00', name: 'Final Round' },
+  hired: { bg: '#E8F5E9', text: '#43A047', name: 'Hired' },
+} as const
+
+const formatDaysLabel = (value?: number | null) => {
+  if (typeof value !== 'number' || Number.isNaN(value)) return '--'
+  return `${Math.round(value)}d`
+}
 
 // ===== SUB-COMPONENTS =====
 

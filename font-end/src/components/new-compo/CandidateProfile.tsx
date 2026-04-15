@@ -18,7 +18,7 @@ import {
   Mail, Phone, Calendar, FileText, Star, MessageSquare,
   ArrowLeft, Download, Edit, Trash2, ArrowRight, XCircle,
 } from 'lucide-react';
-import { AddCandidateModal } from '../add-candidate-modal';
+import { AddCandidateModal } from '../ui/add-candidate-modal';
 
 const getTagColor = (type: string) => {
   switch (type) {

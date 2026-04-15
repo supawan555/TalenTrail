@@ -9,7 +9,7 @@ import { Input } from '../ui/input';
 import { Progress } from '../ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Search, Filter, SortAsc, Mail, Phone, Calendar, Plus, Users, Star } from 'lucide-react';
-import { AddCandidateModal } from '../add-candidate-modal';
+import { AddCandidateModal } from '../ui/add-candidate-modal';
 
 interface CandidatesUIProps {
   // Auth
