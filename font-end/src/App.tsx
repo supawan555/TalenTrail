@@ -4,21 +4,23 @@ import { Routes, Route, useNavigate, useParams, Navigate, Outlet } from 'react-r
 import { Toaster, toast } from 'sonner';
 // --- Context & Auth ---
 import { AuthProvider, useAuth } from './context/AuthContext';
-import ProtectedRoute from './components/ProtectedRoute';
+import ProtectedRoute from './hooks/ProtectedRoute';
 // --- Components ---
-import { Layout } from './components/layout';
-import { Dashboard } from './components/dashboard';
-import { Pipeline } from './components/pipeline';
-import { Candidates } from './components/candidates';
-import { CandidateProfile } from './components/candidate-profile';
-import { ArchivedCandidates } from './components/archived-candidates';
-import { JobDescriptions } from './components/job-descriptions';
-import { Analytics } from './components/analytics';
-import { Notes } from './components/notes';
-import { Settings } from './components/settings';
-import { Login } from './components/login';
-import { Register } from './components/register';
-import { ScrollToTopOnCandidate } from './components/scroll-to-top-on-candidate';
+import { Layout } from './hooks/layout';
+import { Dashboard } from './pages/Dashboard';
+import { Pipeline } from './pages/Pipeline';
+import { Candidates } from './pages/Candidates';
+import { CandidateProfile } from './pages/CandidateProfile';
+import ArchivedCandidates from './pages/ArchivedCandidates';
+import JobDescriptions from './pages/JobDescriptions';
+import { Analytics } from './pages/Analytics';
+import { Notes } from './pages/Notes';
+import { Settings } from './pages/Settings';
+import { Login } from './pages/Login';
+import { Register } from './pages/Register';
+import { ScrollToTopOnCandidate } from './hooks/scroll-to-top-on-candidate';
+//Hooks
+import { useCandidates } from './hooks/useApp';
 // --- Data ---
 import { Candidate } from './lib/mock-data';
 
@@ -92,146 +94,24 @@ const FullScreenLoader = ({ message }: { message: string }) => (
 function AppContent() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
-
-  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [bootstrapping, setBootstrapping] = useState(true);
-
-  // Helper to normalize backend payload to frontend Candidate shape
-  const normalizeCandidate = useCallback((raw: any): Candidate => {
-    const toIsoString = (value?: string | Date | null) => {
-      if (!value) {
-        return undefined;
-      }
-      try {
-        const date = value instanceof Date ? value : new Date(value);
-        if (Number.isNaN(date.getTime())) {
-          return undefined;
-        }
-        return date.toISOString();
-      } catch {
-        return undefined;
-      }
-    };
-
-    const stageHistory = (() => {
-      const history = raw?.state_history ?? raw?.stageHistory;
-      if (!Array.isArray(history)) {
-        return [];
-      }
-      return history
-        .map((entry: any) => {
-          const stage = entry?.stage ?? entry?.state;
-          const enteredAt = toIsoString(entry?.entered_at ?? entry?.enteredAt);
-          const exitedAt = toIsoString(entry?.exited_at ?? entry?.exitedAt);
-          if (!stage || !enteredAt) {
-            return null;
-          }
-          return {
-            stage,
-            enteredAt,
-            exitedAt: exitedAt ?? null
-          };
-        })
-        .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
-    })();
-
-    const appliedIso = toIsoString(raw?.applied_at ?? raw?.appliedAt ?? raw?.appliedDate ?? raw?.created_at) ?? new Date().toISOString();
-    const appliedDate = appliedIso.split('T')[0];
-    const stage = (raw?.stage ?? raw?.current_state ?? 'applied') as Candidate['stage'];
-    const matchScore = typeof raw?.matchScore === 'number'
-      ? raw.matchScore
-      : (typeof raw?.resumeAnalysis?.match?.score === 'number' ? Math.round(raw.resumeAnalysis.match.score) : 0);
-
-    const base: Candidate = {
-      id: raw?.id ?? raw?._id ?? crypto.randomUUID(),
-      name: raw?.name ?? '',
-      email: raw?.email ?? '',
-      phone: raw?.phone ?? '',
-      avatar: raw?.avatar ?? undefined,
-      position: raw?.position ?? raw?.role ?? '',
-      department: raw?.department ?? '',
-      experience: raw?.experience ?? '',
-      location: raw?.location ?? '',
-      matchScore,
-      stage,
-      appliedDate,
-      appliedAt: appliedIso,
-      screeningAt: toIsoString(raw?.screening_at ?? raw?.screeningAt),
-      interviewAt: toIsoString(raw?.interview_at ?? raw?.interviewAt),
-      finalAt: toIsoString(raw?.final_at ?? raw?.finalAt),
-      hiredAt: toIsoString(raw?.hired_at ?? raw?.hiredAt),
-      rejectedAt: toIsoString(raw?.rejected_at ?? raw?.rejectedAt),
-      droppedAt: toIsoString(raw?.dropped_at ?? raw?.dropoff_at ?? raw?.droppedAt),
-      resumeUrl: raw?.resume_url ?? raw?.resumeUrl ?? undefined,
-      archivedDate: toIsoString(raw?.archived_date ?? raw?.archivedDate),
-      archiveReason: raw?.archiveReason ?? raw?.archive_reason ?? undefined,
-      skills: Array.isArray(raw?.skills) ? raw.skills : [],
-      notes: Array.isArray(raw?.notes) ? raw.notes : [],
-      salary: raw?.salary ?? '',
-      availability: raw?.availability ?? '',
-      stageHistory
-    };
-
-    if (raw?.resumeAnalysis) {
-      base.resumeAnalysis = raw.resumeAnalysis;
-    }
-
-    return base;
-  }, []);
-
-  // Fetch candidates from API when the session is ready
-  const fetchCandidates = useCallback(async () => {
-    try {
-      const res = await api.get('/candidates');
-      const items = Array.isArray(res.data) ? res.data.map(normalizeCandidate) : [];
-      setCandidates(items); // map ให้ตรง type ฝั่งหน้าเว็บ
-    } catch (error) {
-      console.error("Failed to fetch candidates:", error);
-      toast.error("Failed to load candidates");
-    }
-  }, [normalizeCandidate]);
-
-  // Hydrate candidates only after auth is ready and a session exists
-  useEffect(() => {
-    if (authLoading) {
-      return;
-    }
-
-    if (!user) {
-      setBootstrapping(false);
-      setCandidates([]);
-      setSelectedCandidate(null);
-      return;
-    }
-
-    let isCancelled = false;
-
-    const hydrate = async () => {
-      setBootstrapping(true);
-      try {
-        await fetchCandidates();
-      } finally {
-        if (!isCancelled) {
-          setBootstrapping(false);
-        }
-      }
-    };
-
-    hydrate();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [authLoading, user, fetchCandidates]);
-
+  
+  //call hooks
+  const { candidates,
+     selectedCandidate, setSelectedCandidate, 
+     bootstrapping, 
+     handleAddCandidate, 
+     handleEditCandidate, 
+     handleDeleteCandidate, 
+     handleNextStage, 
+     handleRejectCandidate, 
+     handleDropOffCandidate, 
+     handleRestoreCandidate } = useCandidates(user, authLoading);
   if (authLoading || bootstrapping) {
     const loaderMessage = authLoading ? 'Checking your session…' : 'Loading your workspace…';
     return <FullScreenLoader message={loaderMessage} />;
   }
 
-  // --- Handlers ---
-
+  // // --- Handlers ---
   const handleCandidateSelect = (candidate: Candidate) => {
     const latestCandidate = candidates.find(c => c.id === candidate.id) || candidate;
     setSelectedCandidate(latestCandidate);
@@ -241,112 +121,6 @@ function AppContent() {
   const handleBackToPipeline = () => {
     setSelectedCandidate(null);
     navigate('/pipeline');
-  };
-
-  const handleAddCandidate = async (newCandidate: Candidate) => {
-    // ⚠️ ถ้าจะให้บันทึกลง Database จริง ต้องแก้ตรงนี้ให้เรียก api.post
-    // แต่เบื้องต้นสั่งให้ Fetch ใหม่เพื่อให้ข้อมูล Sync กับ Server ก็ได้ครับ
-    await fetchCandidates();
-    toast.success('Candidate added successfully!');
-  };
-
-  const handleEditCandidate = async (updatedCandidate: Candidate) => {
-    // ⚠️ ถ้าจะให้บันทึกลง Database จริง ต้องเรียก api.put ที่นี่
-    // อัปเดต UI ไปก่อน
-    setCandidates(prev =>
-      prev.map(c => c.id === updatedCandidate.id ? updatedCandidate : c)
-    );
-    setSelectedCandidate(updatedCandidate);
-    toast.success('Candidate updated successfully!');
-  };
-
-  const handleDeleteCandidate = async (candidateId: string) => {
-    try {
-      // ✅ ตัวอย่างการลบข้อมูลจริง (เรียก API)
-      await api.delete(`/candidates/${candidateId}`);
-
-      // ลบออกจาก State
-      setCandidates(prev => prev.filter(c => c.id !== candidateId));
-      setSelectedCandidate(null);
-      navigate('/candidates');
-      toast.success('Candidate deleted successfully!');
-    } catch (error) {
-      toast.error('Failed to delete candidate');
-    }
-  };
-
-  const handleNextStage = (candidateId: string) => {
-    const stageOrder: Candidate['stage'][] = ['applied', 'screening', 'interview', 'final', 'hired'];
-    setCandidates(prev =>
-      prev.map(c => {
-        if (c.id === candidateId) {
-          const currentIndex = stageOrder.indexOf(c.stage);
-          if (currentIndex >= 0 && currentIndex < stageOrder.length - 1) {
-            const newStage = stageOrder[currentIndex + 1];
-            const updatedCandidate = { ...c, stage: newStage };
-            setSelectedCandidate(updatedCandidate);
-            return updatedCandidate;
-          }
-        }
-        return c;
-      })
-    );
-    toast.success('Candidate moved to next stage!');
-  };
-
-  const handleRejectCandidate = (candidateId: string, reason: string) => {
-    setCandidates(prev =>
-      prev.map(c => {
-        if (c.id === candidateId) {
-          const updatedCandidate = {
-            ...c,
-            stage: 'rejected' as Candidate['stage'],
-            archivedDate: new Date().toISOString().split('T')[0],
-            archiveReason: reason
-          };
-          setSelectedCandidate(updatedCandidate);
-          return updatedCandidate;
-        }
-        return c;
-      })
-    );
-    toast.success('Candidate has been rejected and archived');
-  };
-
-  const handleDropOffCandidate = (candidateId: string, reason: string) => {
-    setCandidates(prev =>
-      prev.map(c => {
-        if (c.id === candidateId) {
-          const updatedCandidate = {
-            ...c,
-            stage: 'drop-off' as Candidate['stage'],
-            archivedDate: new Date().toISOString().split('T')[0],
-            archiveReason: reason
-          };
-          setSelectedCandidate(updatedCandidate);
-          return updatedCandidate;
-        }
-        return c;
-      })
-    );
-    toast.success('Candidate marked as drop-off and archived');
-  };
-
-  const handleRestoreCandidate = (candidateId: string) => {
-    setCandidates(prev =>
-      prev.map(c => {
-        if (c.id === candidateId) {
-          return {
-            ...c,
-            stage: 'applied' as Candidate['stage'],
-            archiveReason: undefined,
-            archivedDate: undefined
-          };
-        }
-        return c;
-      })
-    );
-    toast.success('Candidate restored successfully');
   };
 
   // Wrapper Component for Candidate Profile
@@ -380,7 +154,6 @@ function AppContent() {
     return (
       <CandidateProfile
         candidate={seed}
-        onBack={handleBackToPipeline}
         onEdit={handleEditCandidate}
         onDelete={handleDeleteCandidate}
         onNextStage={handleNextStage}

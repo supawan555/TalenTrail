@@ -2,7 +2,7 @@ import { useAuth } from '../context/AuthContext';
 import { ROLE_NAVIGATION } from '../config/roleNavigation';
 import { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger } from './ui/sidebar';
+import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger } from '../components/ui/sidebar';
 import { LayoutDashboard, Users, Workflow, BarChart3, FileText, Settings, Briefcase, Archive } from 'lucide-react';
 
 interface LayoutProps {
