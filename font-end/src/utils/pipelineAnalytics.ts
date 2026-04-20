@@ -52,6 +52,18 @@ const buildStageTimeline = (candidate: Candidate): StageTimeline => {
     }
   });
 
+  // If backend does not store a timestamp for the current stage yet,
+  // use the best available fallback so current-stage duration can still be measured.
+  if (!timeline[candidate.stage]) {
+    const fallbackCurrentStageDate =
+      toDate((candidate as any).updatedAt ?? (candidate as any).updated_at) ??
+      toDate(candidate.appliedAt ?? candidate.appliedDate);
+
+    if (fallbackCurrentStageDate) {
+      timeline[candidate.stage] = fallbackCurrentStageDate;
+    }
+  }
+
   return timeline;
 };
 
@@ -82,7 +94,10 @@ const findNextStageDate = (
 
 export const calculateAverageStageDuration = (candidates: Candidate[] = []) => {
   if (!Array.isArray(candidates) || candidates.length === 0) {
-    return [];
+    return PIPELINE_STAGES.map((stage) => ({
+      stage: STAGE_LABELS[stage],
+      avgDays: 0
+    }));
   }
 
   const aggregates = new Map<CandidateStage, { total: number; count: number }>();
@@ -113,14 +128,13 @@ export const calculateAverageStageDuration = (candidates: Candidate[] = []) => {
   return PIPELINE_STAGES
     .map((stage) => {
       const aggregate = aggregates.get(stage);
-      if (!aggregate || aggregate.count === 0) {
-        return null;
-      }
-      const avgDays = aggregate.total / aggregate.count;
+      const avgDays = !aggregate || aggregate.count === 0
+        ? 0
+        : aggregate.total / aggregate.count;
+
       return {
         stage: STAGE_LABELS[stage],
         avgDays: Math.ceil(avgDays)
       };
-    })
-    .filter((entry): entry is { stage: string; avgDays: number } => Boolean(entry));
+    });
 };

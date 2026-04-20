@@ -23,59 +23,147 @@ SEED_TAG = "dashboard-demo"
 
 
 def build_candidates(now: datetime) -> List[Dict[str, Any]]:
-    def cand(name: str, email: str, position: str, applied_days_ago: int, state: str,
-             stage_days: int = 0, hired: bool = False, rejected: bool = False, dropped: bool = False) -> Dict[str, Any]:
-        applied_at = now - timedelta(days=applied_days_ago)
-        state_entered_at = now - timedelta(days=stage_days) if stage_days > 0 else applied_at
+    def dt(days_ago: int) -> datetime:
+        return now - timedelta(days=days_ago)
+
+    def mk_candidate(
+        name: str,
+        email: str,
+        phone: str,
+        position: str,
+        department: str,
+        match_score: int,
+        timeline: List[tuple[str, int]],
+    ) -> Dict[str, Any]:
+        # timeline must start with ("applied", <days_ago>) and be ordered oldest -> newest
+        state_history: List[Dict[str, Any]] = []
+        for idx, (state, entered_days_ago) in enumerate(timeline):
+            entered_at = dt(entered_days_ago)
+            exited_at = dt(timeline[idx + 1][1]) if idx + 1 < len(timeline) else None
+            state_history.append(
+                {
+                    "state": state,
+                    "entered_at": entered_at,
+                    "exited_at": exited_at,
+                }
+            )
+
+        current_state = timeline[-1][0]
+        applied_at = dt(timeline[0][1])
+
         doc: Dict[str, Any] = {
             "seed_tag": SEED_TAG,
             "name": name,
             "email": email,
+            "phone": phone,
             "position": position,
+            "department": department,
+            "experience": "3+ years",
+            "location": "Bangkok",
             "status": "active",
-            "created_at": now.isoformat(),
+            "created_at": applied_at.isoformat(),
             "applied_at": applied_at,
-            "current_state": state,
+            "current_state": current_state,
             "hired_at": None,
             "rejected_at": None,
             "dropped_at": None,
-            "state_history": [
-                {"state": "applied", "entered_at": applied_at, "exited_at": state_entered_at if state != "applied" else None}
-            ],
-            "matchScore": 60,
+            "state_history": state_history,
+            "matchScore": match_score,
         }
-        if state != "applied":
-            doc["state_history"].append({"state": state, "entered_at": state_entered_at, "exited_at": None})
-        if hired:
-            doc["current_state"] = "hired"
-            doc["hired_at"] = now - timedelta(days=max(0, stage_days - 1))
-            # close last state
-            if doc["state_history"]:
-                doc["state_history"][-1]["exited_at"] = doc["hired_at"]
-            doc["state_history"].append({"state": "hired", "entered_at": doc["hired_at"], "exited_at": None})
-        if rejected:
-            doc["current_state"] = "rejected"
-            doc["rejected_at"] = now - timedelta(days=max(0, stage_days - 1))
-            if doc["state_history"]:
-                doc["state_history"][-1]["exited_at"] = doc["rejected_at"]
-            doc["state_history"].append({"state": "rejected", "entered_at": doc["rejected_at"], "exited_at": None})
-        if dropped:
-            doc["current_state"] = "dropped"
-            doc["dropped_at"] = now - timedelta(days=max(0, stage_days - 1))
-            if doc["state_history"]:
-                doc["state_history"][-1]["exited_at"] = doc["dropped_at"]
-            doc["state_history"].append({"state": "dropped", "entered_at": doc["dropped_at"], "exited_at": None})
+
+        stage_field_map = {
+            "screening": "screening_at",
+            "interview": "interview_at",
+            "final": "final_at",
+            "hired": "hired_at",
+            "rejected": "rejected_at",
+            "drop-off": "dropped_at",
+            "dropped": "dropped_at",
+        }
+
+        for state, entered_days_ago in timeline:
+            field = stage_field_map.get(state)
+            if field:
+                doc[field] = dt(entered_days_ago)
+
+        if current_state in {"rejected", "drop-off", "dropped"}:
+            doc["status"] = "inactive"
+        if current_state == "hired":
+            doc["status"] = "hired"
+
         return doc
 
     return [
-        cand("Alice Johnson", "alice.demo@example.com", "Frontend Engineer", 20, "screening", stage_days=12),
-        cand("Bob Smith", "bob.demo@example.com", "Backend Engineer", 35, "interview", stage_days=10),
-        cand("Carol Lee", "carol.demo@example.com", "Data Scientist", 10, "applied"),
-        cand("David Park", "david.demo@example.com", "QA Engineer", 50, "final", stage_days=8, hired=True),
-        cand("Eva Gomez", "eva.demo@example.com", "Product Manager", 28, "interview", stage_days=6, rejected=True),
-        cand("Frank Wu", "frank.demo@example.com", "DevOps Engineer", 18, "screening", stage_days=9, dropped=True),
-        # A hire this month
-        cand("Grace Kim", "grace.demo@example.com", "UI/UX Designer", 7, "final", stage_days=6, hired=True),
+        # Applied duration = 8 days, currently in Screening for 12 days
+        mk_candidate(
+            "Alice Johnson",
+            "alice.demo@example.com",
+            "0909101001",
+            "Frontend Engineer",
+            "Engineering",
+            84,
+            [("applied", 20), ("screening", 12)],
+        ),
+        # Applied 6 days -> Screening 14 days -> currently Interview 10 days
+        mk_candidate(
+            "Bob Smith",
+            "bob.demo@example.com",
+            "0909101002",
+            "Backend Engineer",
+            "Engineering",
+            76,
+            [("applied", 30), ("screening", 24), ("interview", 10)],
+        ),
+        # Fresh applied candidate for card/date verification
+        mk_candidate(
+            "Carol Lee",
+            "carol.demo@example.com",
+            "0909101003",
+            "Data Scientist",
+            "Product",
+            68,
+            [("applied", 5)],
+        ),
+        # Long pipeline and currently in Final
+        mk_candidate(
+            "David Park",
+            "david.demo@example.com",
+            "0909101004",
+            "QA Engineer",
+            "Engineering",
+            72,
+            [("applied", 40), ("screening", 32), ("interview", 21), ("final", 8)],
+        ),
+        # Hired candidate to provide completed stage transitions
+        mk_candidate(
+            "Grace Kim",
+            "grace.demo@example.com",
+            "0909101005",
+            "UI/UX Designer",
+            "Design",
+            91,
+            [("applied", 50), ("screening", 42), ("interview", 30), ("final", 15), ("hired", 3)],
+        ),
+        # Rejected branch for archived page/testing
+        mk_candidate(
+            "Eva Gomez",
+            "eva.demo@example.com",
+            "0909101006",
+            "Product Manager",
+            "Product",
+            63,
+            [("applied", 25), ("screening", 18), ("interview", 9), ("rejected", 2)],
+        ),
+        # Drop-off branch for archived page/testing
+        mk_candidate(
+            "Frank Wu",
+            "frank.demo@example.com",
+            "0909101007",
+            "DevOps Engineer",
+            "Engineering",
+            58,
+            [("applied", 16), ("screening", 11), ("drop-off", 4)],
+        ),
     ]
 
 

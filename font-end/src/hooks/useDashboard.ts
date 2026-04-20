@@ -1,6 +1,6 @@
 // hooks/useDashboard.ts
 
-import { useEffect, useMemo, useState } from 'react'
+import { KeyboardEvent, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api'
@@ -14,6 +14,14 @@ const STAGE_COLORS = {
 }
 
 type StageKey = keyof typeof STAGE_COLORS;
+
+type StageDelay = {
+  stage: StageKey
+  averageDays: number
+  longestDays: number
+  longestCandidateId?: string
+  longestCandidateName?: string
+}
 
 const BOTTLENECK_STAGES: StageKey[] = ['applied', 'screening', 'interview', 'final']
 
@@ -51,7 +59,6 @@ export const useDashboard = () => {
   const [candidates, setCandidates] = useState<any[]>([]);
   const [applicationsByMonth, setApplicationsByMonth] = useState<any[]>([]);
   const [jobsCount, setJobsCount] = useState<number>(0);
-  const [currentStageIndex, setCurrentStageIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
 
   // ===== DATA FETCH =====
@@ -81,13 +88,189 @@ export const useDashboard = () => {
   }, []);
 
   // ===== COMPUTE =====
-  const currentMonthCandidateCount = candidates.length;
+  const currentMonthCandidateCount = useMemo(() => {
+    const now = new Date();
+    return candidates.filter((candidate) => {
+      const appliedDate =
+        parseDateValue(candidate?.applied_at) ??
+        parseDateValue(candidate?.appliedAt) ??
+        parseDateValue(candidate?.created_at) ??
+        parseDateValue(candidate?.createdAt);
 
-  const recentCandidates = candidates.slice(0, 5);
+      return appliedDate ? isSameMonth(appliedDate, now.getFullYear(), now.getMonth()) : false;
+    }).length;
+  }, [candidates]);
+
+  const hiredThisMonthCount = useMemo(() => {
+    if (typeof metrics?.hired_this_month === 'number') {
+      return metrics.hired_this_month;
+    }
+
+    const now = new Date();
+    return candidates.filter((candidate) => {
+      const hiredDate = parseDateValue(candidate?.hired_at ?? candidate?.hiredAt);
+      return hiredDate ? isSameMonth(hiredDate, now.getFullYear(), now.getMonth()) : false;
+    }).length;
+  }, [metrics, candidates]);
+
+  const avgTimeToHire = useMemo(() => {
+    if (typeof metrics?.avg_time_to_hire === 'number') {
+      return metrics.avg_time_to_hire;
+    }
+
+    const durations = candidates
+      .map((candidate) => {
+        const start = parseDateValue(candidate?.applied_at ?? candidate?.appliedAt ?? candidate?.created_at ?? candidate?.createdAt);
+        const end = parseDateValue(candidate?.hired_at ?? candidate?.hiredAt);
+        if (!start || !end || end <= start) return null;
+        return diffInDays(end, start);
+      })
+      .filter((value): value is number => typeof value === 'number');
+
+    if (!durations.length) return null;
+    const total = durations.reduce((sum, value) => sum + value, 0);
+    return total / durations.length;
+  }, [metrics, candidates]);
+
+  const dropOffRate = useMemo(() => {
+    if (typeof metrics?.drop_off_rate === 'number') {
+      return metrics.drop_off_rate;
+    }
+
+    if (!candidates.length) return 0;
+    const droppedCount = candidates.filter((candidate) => {
+      const stage = String(candidate?.current_state ?? candidate?.stage ?? '').toLowerCase();
+      return stage === 'rejected' || stage === 'drop-off' || stage === 'dropoff' || stage === 'dropped';
+    }).length;
+
+    return (droppedCount / candidates.length) * 100;
+  }, [metrics, candidates]);
+
+  const getCurrentStageEnteredDate = (candidate: any, stage: StageKey): Date | null => {
+    const history = candidate?.state_history ?? candidate?.stageHistory;
+
+    if (Array.isArray(history)) {
+      const openEntry = [...history].reverse().find((entry) => {
+        const entryStage = normalizeStage(entry?.state ?? entry?.stage);
+        const exited = entry?.exited_at ?? entry?.exitedAt;
+        const isOpen = exited === null || exited === undefined || String(exited).trim() === '';
+        return entryStage === stage && isOpen;
+      });
+
+      const enteredAt = parseDateValue(openEntry?.entered_at ?? openEntry?.enteredAt);
+      if (enteredAt) return enteredAt;
+
+      const latestMatching = [...history].reverse().find((entry) => normalizeStage(entry?.state ?? entry?.stage) === stage);
+      const latestEnteredAt = parseDateValue(latestMatching?.entered_at ?? latestMatching?.enteredAt);
+      if (latestEnteredAt) return latestEnteredAt;
+    }
+
+    const stageDateMap: Partial<Record<StageKey, Date | null>> = {
+      applied: parseDateValue(candidate?.applied_at ?? candidate?.appliedAt ?? candidate?.created_at ?? candidate?.createdAt),
+      screening: parseDateValue(candidate?.screening_at ?? candidate?.screeningAt),
+      interview: parseDateValue(candidate?.interview_at ?? candidate?.interviewAt),
+      final: parseDateValue(candidate?.final_at ?? candidate?.finalAt),
+      hired: parseDateValue(candidate?.hired_at ?? candidate?.hiredAt)
+    };
+
+    return stageDateMap[stage] ?? null;
+  };
+
+  const stageDelays = useMemo<StageDelay[]>(() => {
+    const now = new Date();
+
+    return BOTTLENECK_STAGES.map((stage) => {
+      const stageCandidates = candidates.filter(
+        (candidate) => normalizeStage(candidate?.current_state ?? candidate?.stage) === stage
+      );
+
+      const delayRows = stageCandidates
+        .map((candidate) => {
+          const enteredAt = getCurrentStageEnteredDate(candidate, stage);
+          if (!enteredAt || enteredAt > now) return null;
+
+          return {
+            id: String(candidate?.id ?? candidate?._id ?? ''),
+            name: String(candidate?.name ?? 'Unknown'),
+            days: diffInDays(now, enteredAt)
+          };
+        })
+        .filter((row): row is { id: string; name: string; days: number } => Boolean(row));
+
+      if (!delayRows.length) {
+        return {
+          stage,
+          averageDays: 0,
+          longestDays: 0
+        };
+      }
+
+      const totalDays = delayRows.reduce((sum, row) => sum + row.days, 0);
+      const longest = delayRows.reduce((prev, current) => (current.days > prev.days ? current : prev), delayRows[0]);
+
+      return {
+        stage,
+        averageDays: totalDays / delayRows.length,
+        longestDays: longest.days,
+        longestCandidateId: longest.id || undefined,
+        longestCandidateName: longest.name || undefined
+      };
+    });
+  }, [candidates]);
+
+  const currentStageData = useMemo<StageDelay>(() => {
+    const withData = stageDelays.filter((row) => row.averageDays > 0);
+    if (!withData.length) {
+      return {
+        stage: 'applied',
+        averageDays: 0,
+        longestDays: 0
+      };
+    }
+
+    return withData.reduce((prev, current) =>
+      current.averageDays > prev.averageDays ? current : prev
+    );
+  }, [stageDelays]);
+
+  const currentStageColor = STAGE_COLORS[currentStageData.stage] ?? STAGE_COLORS.applied;
+
+  const currentBottleneckDays = currentStageData.averageDays;
+
+  const bottleneckReason = currentStageData.averageDays > 0
+    ? `${currentStageColor.name} has the highest average waiting time`
+    : 'No bottleneck data';
+
+  const stageSampleLabel = currentStageData.longestCandidateName
+    ? `Longest: ${currentStageData.longestCandidateName} (${Math.round(currentStageData.longestDays)}d)`
+    : 'Insufficient data';
+
+  const canNavigateToBottleneck = Boolean(currentStageData.longestCandidateId);
+
+  const recentCandidates = [...candidates]
+    .sort((a, b) => {
+      const aDate = parseDateValue(a?.created_at ?? a?.applied_at ?? a?.appliedAt)?.getTime() ?? 0;
+      const bDate = parseDateValue(b?.created_at ?? b?.applied_at ?? b?.appliedAt)?.getTime() ?? 0;
+      return bDate - aDate;
+    })
+    .slice(0, 5);
 
   const navigateToBottleneckCandidate = (id?: string) => {
     if (!id) return;
     navigate(`/candidate/${id}`);
+  };
+
+  const handleBottleneckClick = () => {
+    if (!currentStageData.longestCandidateId) return;
+    navigateToBottleneckCandidate(currentStageData.longestCandidateId);
+  };
+
+  const handleBottleneckKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!canNavigateToBottleneck) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      handleBottleneckClick();
+    }
   };
 
   return {
@@ -97,6 +280,17 @@ export const useDashboard = () => {
     applicationsByMonth,
     jobsCount,
     currentMonthCandidateCount,
+    hiredThisMonthCount,
+    avgTimeToHire,
+    dropOffRate,
+    currentStageData,
+    currentStageColor,
+    currentBottleneckDays,
+    bottleneckReason,
+    stageSampleLabel,
+    canNavigateToBottleneck,
+    handleBottleneckClick,
+    handleBottleneckKeyDown,
     recentCandidates,
     setIsHovered,
     navigateToBottleneckCandidate
