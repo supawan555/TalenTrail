@@ -2,8 +2,39 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import api from '../lib/api';
-import { pipelineStages, Candidate } from '../lib/mock-data';
+import { Candidate } from '../lib/mock-data';
 import { calculateAverageStageDuration } from '../utils/pipelineAnalytics';
+
+const ACTIVE_PIPELINE_STAGES = [
+    { id: 'applied', name: 'Applied', color: 'bg-blue-50 border-blue-200' },
+    { id: 'screening', name: 'Screening', color: 'bg-yellow-50 border-yellow-200' },
+    { id: 'interview', name: 'Interview', color: 'bg-purple-50 border-purple-200' },
+    { id: 'final', name: 'Final Round', color: 'bg-orange-50 border-orange-200' },
+    { id: 'hired', name: 'Hired', color: 'bg-green-50 border-green-200' }
+] as const;
+
+const normalizeStage = (value?: string | null): Candidate['stage'] => {
+    const raw = (value ?? '').toString().trim().toLowerCase();
+    if (!raw) return 'applied';
+
+    if (raw === 'dropoff' || raw === 'dropped') return 'drop-off';
+    if (raw === 'final-round' || raw === 'final round') return 'final';
+
+    const validStages: Candidate['stage'][] = [
+        'applied',
+        'screening',
+        'interview',
+        'final',
+        'hired',
+        'rejected',
+        'drop-off',
+        'archived'
+    ];
+
+    return validStages.includes(raw as Candidate['stage'])
+        ? (raw as Candidate['stage'])
+        : 'applied';
+};
 
 export const usePipeline = (propCandidates?: Candidate[]) => {
     const [searchQuery, setSearchQuery] = useState('');
@@ -23,16 +54,21 @@ export const usePipeline = (propCandidates?: Candidate[]) => {
         }
     };
 
+    const normalizeDepartment = (value?: string | null): string => {
+        const normalized = (value ?? '').toString().trim();
+        return normalized || 'Unspecified';
+    };
+
     const normalizeStageHistory = (history: any): Candidate['stageHistory'] => {
         if (!Array.isArray(history)) {
             return [];
         }
         return history
             .map((entry) => {
-                const stage = entry?.stage ?? entry?.state;
+                const stage = normalizeStage(entry?.stage ?? entry?.state);
                 const enteredAt = toIsoString(entry?.entered_at ?? entry?.enteredAt);
                 const exited = toIsoString(entry?.exited_at ?? entry?.exitedAt);
-                if (!stage || !enteredAt) {
+                if (!enteredAt) {
                     return null;
                 }
                 return {
@@ -64,18 +100,22 @@ export const usePipeline = (propCandidates?: Candidate[]) => {
                     const appliedIso =
                         toIsoString(c.applied_at ?? c.created_at) ?? new Date().toISOString();
 
+                    const parsedMatchScore = typeof c.matchScore === 'number'
+                        ? c.matchScore
+                        : Number.parseFloat(c.matchScore ?? '0');
+
                     return {
                         id: c.id ?? c._id ?? String(Date.now()),
                         name: c.name ?? 'Unknown',
-                        email: c.email ?? 'candidate@example.com',
-                        phone: c.phone ?? '+1 234 567 8900',
+                        email: c.email ?? '',
+                        phone: c.phone ?? '',
                         avatar: c.avatar ?? '',
                         position: c.position ?? (c.role ?? 'Unknown'),
-                        department: c.department ?? 'Engineering',
+                        department: normalizeDepartment(c.department),
                         experience: c.experience ?? 'mid',
                         location: c.location ?? 'Remote',
-                        matchScore: typeof c.matchScore === 'number' ? c.matchScore : 0,
-                        stage: c.stage ?? c.current_state ?? 'applied',
+                        matchScore: Number.isFinite(parsedMatchScore) ? parsedMatchScore : 0,
+                        stage: normalizeStage(c.stage ?? c.current_state),
                         appliedDate: appliedIso,
                         appliedAt: appliedIso,
                         screeningAt: toIsoString(c.screening_at ?? c.screeningAt),
@@ -120,6 +160,12 @@ export const usePipeline = (propCandidates?: Candidate[]) => {
         return Array.from(set);
     }, [activeCandidates]);
 
+    const departmentOptions = useMemo(() => {
+        const set = new Set<string>();
+        activeCandidates.forEach(c => c.department && set.add(c.department));
+        return Array.from(set);
+    }, [activeCandidates]);
+
     const filteredCandidates = useMemo(() => {
         return activeCandidates.filter(c => {
             const matchesSearch =
@@ -137,7 +183,7 @@ export const usePipeline = (propCandidates?: Candidate[]) => {
     }, [activeCandidates, searchQuery, departmentFilter, positionFilter]);
 
     const filteredStages = useMemo(() => {
-        return pipelineStages.map(stage => ({
+        return ACTIVE_PIPELINE_STAGES.map(stage => ({
             ...stage,
             candidates: filteredCandidates.filter(c => c.stage === stage.id)
         }));
@@ -158,6 +204,7 @@ export const usePipeline = (propCandidates?: Candidate[]) => {
         setExpandedStage,
 
         positionOptions,
+        departmentOptions,
         filteredCandidates,
         filteredStages,
         stageDurationData,

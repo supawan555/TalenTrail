@@ -5,6 +5,29 @@ import api from '../lib/api';
 import { toast } from 'sonner';
 import { Candidate } from '../lib/mock-data';
 
+const normalizeStage = (value?: string | null): Candidate['stage'] => {
+  const raw = (value ?? '').toString().trim().toLowerCase();
+  if (!raw) return 'applied';
+
+  if (raw === 'dropoff' || raw === 'dropped') return 'drop-off';
+  if (raw === 'final-round' || raw === 'final round') return 'final';
+
+  const validStages: Candidate['stage'][] = [
+    'applied',
+    'screening',
+    'interview',
+    'final',
+    'hired',
+    'rejected',
+    'drop-off',
+    'archived'
+  ];
+
+  return validStages.includes(raw as Candidate['stage'])
+    ? (raw as Candidate['stage'])
+    : 'applied';
+};
+
 export const useCandidates = (user: any, authLoading: boolean) => {
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -23,23 +46,69 @@ export const useCandidates = (user: any, authLoading: boolean) => {
       }
     };
 
+    const normalizeDepartment = (value?: string | null): string => {
+      const normalized = (value ?? '').toString().trim();
+      return normalized || 'Unspecified';
+    };
+
+    const normalizeStageHistory = (history: any): Candidate['stageHistory'] => {
+      if (!Array.isArray(history)) {
+        return [];
+      }
+
+      return history
+        .map((entry) => {
+          const stage = normalizeStage(entry?.stage ?? entry?.state);
+          const enteredAt = toIsoString(entry?.entered_at ?? entry?.enteredAt);
+          const exitedAt = toIsoString(entry?.exited_at ?? entry?.exitedAt);
+          if (!enteredAt) {
+            return null;
+          }
+
+          return {
+            stage,
+            enteredAt,
+            exitedAt: exitedAt ?? null
+          };
+        })
+        .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+    };
+
+    const appliedIso =
+      toIsoString(raw?.applied_at ?? raw?.appliedAt ?? raw?.created_at ?? raw?.createdAt) ??
+      new Date().toISOString();
+
+    const parsedMatchScore = typeof raw?.matchScore === 'number'
+      ? raw.matchScore
+      : Number.parseFloat(raw?.matchScore ?? '0');
+
     return {
       id: raw?.id ?? crypto.randomUUID(),
       name: raw?.name ?? '',
       email: raw?.email ?? '',
       phone: raw?.phone ?? '',
+      avatar: raw?.avatar ?? '',
       position: raw?.position ?? '',
-      department: raw?.department ?? '',
+      department: normalizeDepartment(raw?.department),
       experience: raw?.experience ?? '',
       location: raw?.location ?? '',
-      matchScore: raw?.matchScore ?? 0,
-      stage: raw?.stage ?? 'applied',
-      appliedDate: new Date().toISOString().split('T')[0],
-      appliedAt: new Date().toISOString(),
+      matchScore: Number.isFinite(parsedMatchScore) ? parsedMatchScore : 0,
+      stage: normalizeStage(raw?.stage ?? raw?.current_state),
+      appliedDate: appliedIso,
+      appliedAt: appliedIso,
+      screeningAt: toIsoString(raw?.screening_at ?? raw?.screeningAt),
+      interviewAt: toIsoString(raw?.interview_at ?? raw?.interviewAt),
+      finalAt: toIsoString(raw?.final_at ?? raw?.finalAt),
+      hiredAt: toIsoString(raw?.hired_at ?? raw?.hiredAt),
+      rejectedAt: toIsoString(raw?.rejected_at ?? raw?.rejectedAt),
+      droppedAt: toIsoString(raw?.dropped_at ?? raw?.dropoff_at ?? raw?.droppedAt),
+      archivedDate: toIsoString(raw?.archived_date ?? raw?.archivedDate),
       skills: raw?.skills ?? [],
       notes: raw?.notes ?? [],
-      salary: '',
-      availability: ''
+      salary: raw?.salary ?? '',
+      availability: raw?.availability ?? '',
+      resumeUrl: raw?.resume_url ?? raw?.resumeUrl ?? '',
+      stageHistory: normalizeStageHistory(raw?.stageHistory ?? raw?.state_history)
     };
   }, []);
 

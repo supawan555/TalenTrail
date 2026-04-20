@@ -10,6 +10,43 @@ import { Candidate } from '../../lib/mock-data';
 import { CandidatePieChart } from '../analytics/CandidatePieChart';
 import { StageDurationBarChart } from '../analytics/StageDurationBarChart';
 
+const toValidDate = (value?: string | null): Date | null => {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const getCurrentStageEnteredDate = (candidate: Candidate): Date | null => {
+  const currentStage = (candidate.stage ?? '').toLowerCase();
+
+  // Prefer explicit history for the current stage when available.
+  if (Array.isArray(candidate.stageHistory) && currentStage) {
+    const historyEntry = [...candidate.stageHistory]
+      .reverse()
+      .find((entry) => (entry?.stage ?? '').toLowerCase() === currentStage);
+
+    const historyDate = toValidDate(historyEntry?.enteredAt ?? null);
+    if (historyDate) return historyDate;
+  }
+
+  // Fallback to stage-specific timestamps from API.
+  const stageDateMap: Record<string, string | undefined> = {
+    applied: candidate.appliedAt ?? candidate.appliedDate,
+    screening: candidate.screeningAt,
+    interview: candidate.interviewAt,
+    final: candidate.finalAt,
+    hired: candidate.hiredAt,
+    rejected: candidate.rejectedAt,
+    'drop-off': candidate.droppedAt,
+    archived: candidate.archivedDate
+  };
+
+  const stageDate = toValidDate(stageDateMap[currentStage]);
+  if (stageDate) return stageDate;
+
+  return toValidDate(candidate.appliedAt ?? candidate.appliedDate);
+};
+
 // กำหนด Props ทั้งหมดที่ UI ต้องการ (รวมถึงค่าที่เคยมาจาก Hook)
 export interface PipelineUIProps {
   user: any; // กำหนด Type ให้ตรงกับ User ของคุณ
@@ -26,6 +63,7 @@ export interface PipelineUIProps {
   expandedStage: string | null;
   setExpandedStage: (stageId: string | null) => void;
   positionOptions: string[];
+  departmentOptions: string[];
   filteredCandidates: Candidate[];
   filteredStages: any[];
   stageDurationData: any[];
@@ -44,6 +82,7 @@ export function PipelineUI({
   expandedStage,
   setExpandedStage,
   positionOptions,
+  departmentOptions,
   filteredCandidates,
   filteredStages,
   stageDurationData
@@ -55,7 +94,10 @@ export function PipelineUI({
     return null;
   }
 
-  const CandidateCard = ({ candidate }: { candidate: Candidate }) => (
+  const CandidateCard = ({ candidate }: { candidate: Candidate }) => {
+    const enteredDate = getCurrentStageEnteredDate(candidate);
+
+    return (
     <Card className="w-full h-full hover:shadow-md transition-all duration-200">
       <CardContent className="p-4">
         <div className="mb-3">
@@ -77,15 +119,15 @@ export function PipelineUI({
         <div className="space-y-2 mb-3">
           <div className="flex items-center text-xs text-muted-foreground min-w-0">
             <Mail className="w-3 h-3 mr-1 shrink-0" />
-            <span className="truncate" title={candidate.email}>{candidate.email}</span>
+            <span className="truncate" title={candidate.email || 'N/A'}>{candidate.email || 'N/A'}</span>
           </div>
           <div className="flex items-center text-xs text-muted-foreground min-w-0">
             <Phone className="w-3 h-3 mr-1 shrink-0" />
-            <span className="truncate" title={candidate.phone}>{candidate.phone}</span>
+            <span className="truncate" title={candidate.phone || 'N/A'}>{candidate.phone || 'N/A'}</span>
           </div>
           <div className="flex items-center text-xs text-muted-foreground">
             <Calendar className="w-3 h-3 mr-1" />
-            Applied {new Date(candidate.appliedDate).toLocaleDateString()}
+            Entered {enteredDate ? enteredDate.toLocaleDateString() : 'N/A'}
           </div>
         </div>
 
@@ -98,7 +140,8 @@ export function PipelineUI({
         </div>
       </CardContent>
     </Card>
-  );
+    );
+  };
 
   return (
     <div className="p-6">
@@ -142,10 +185,11 @@ export function PipelineUI({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Departments</SelectItem>
-              <SelectItem value="Engineering">Engineering</SelectItem>
-              <SelectItem value="Design">Design</SelectItem>
-              <SelectItem value="Product">Product</SelectItem>
-              <SelectItem value="Marketing">Marketing</SelectItem>
+              {departmentOptions.map((department) => (
+                <SelectItem key={department} value={department}>
+                  {department}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

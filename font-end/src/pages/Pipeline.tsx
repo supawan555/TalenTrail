@@ -20,6 +20,7 @@ export function Pipeline({ onCandidateSelect, candidates: propCandidates }: Pipe
     expandedStage,
     setExpandedStage,
     positionOptions,
+    departmentOptions,
     filteredCandidates,
     filteredStages,
     stageDurationData,
@@ -39,6 +40,7 @@ export function Pipeline({ onCandidateSelect, candidates: propCandidates }: Pipe
       expandedStage={expandedStage}
       setExpandedStage={setExpandedStage}
       positionOptions={positionOptions}
+      departmentOptions={departmentOptions}
       filteredCandidates={filteredCandidates}
       filteredStages={filteredStages}
       stageDurationData={stageDurationData}

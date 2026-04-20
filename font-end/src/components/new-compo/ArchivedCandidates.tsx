@@ -12,8 +12,8 @@ import { Badge } from '../ui/badge';
 import { ScrollArea } from '../ui/scroll-area';
 import { Archive, Search, Eye, RotateCcw, Mail, Phone, Calendar, Briefcase } from 'lucide-react';
 
-const DEPARTMENTS = ['All', 'Engineering', 'Design', 'Product', 'Marketing', 'Data Science', 'Operations'];
-const STATUSES = ['All', 'Rejected', 'Drop-off', 'Hired'];
+const DEPARTMENTS = ['Engineering', 'Design', 'Product', 'Marketing', 'Data Science', 'Operations'];
+const STATUSES = ['Rejected', 'Drop-off', 'Hired'];
 
 interface ArchivedCandidatesUIProps {
   // Filters
@@ -58,7 +58,7 @@ const getStatusBadge = (stage: string) => {
 
 const getMatchScoreColor = (score: number) => {
   if (score >= 85) return 'text-green-600';
-  if (score >= 70) return 'text-blue-600';
+  if (score >= 70) return 'text-yellow-500';
   return 'text-orange-600';
 };
 
@@ -135,6 +135,7 @@ export function ArchivedCandidatesUI({
                   <SelectValue placeholder="Department" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="All">All Departments</SelectItem>
                   {DEPARTMENTS.map((dept) => (
                     <SelectItem key={dept} value={dept}>{dept}</SelectItem>
                   ))}
@@ -162,6 +163,7 @@ export function ArchivedCandidatesUI({
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="All">All Statuses</SelectItem>
                   {STATUSES.map((status) => (
                     <SelectItem key={status} value={status}>{status}</SelectItem>
                   ))}

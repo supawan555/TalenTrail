@@ -5,6 +5,19 @@ import api from '../lib/api';
 
 type TimeRange = 'week' | '1month' | '3months' | '6months' | '1year';
 type ChartDimension = 'department' | 'position';
+type UpcomingJoiner = {
+    candidateId: string;
+    name: string;
+    position: string;
+    joinDate: Date;
+    daysUntil: number;
+} | null;
+
+const toValidDate = (value: unknown): Date | null => {
+    if (!value) return null;
+    const parsed = value instanceof Date ? value : new Date(String(value));
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
 
 export const useAnalytics = () => {
     const [timeRange, setTimeRange] = useState<TimeRange>('6months');
@@ -83,28 +96,40 @@ export const useAnalytics = () => {
     }, [filteredCandidates]);
 
     // ===== upcoming =====
-    const upcomingJoiner = useMemo(() => {
+    const upcomingJoiner = useMemo<UpcomingJoiner>(() => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
         return candidates
             .map(c => {
-                const stage = (c?.stage || '').toLowerCase();
-                if (stage !== 'hired') return null;
+                const stage = (c?.stage || c?.current_state || '').toLowerCase();
+                const status = (c?.status || '').toLowerCase();
+                const isHired = stage === 'hired' || (stage === 'archived' && status === 'hired');
+                if (!isHired) return null;
 
-                const start = new Date(c?.startDate);
-                if (isNaN(start.getTime())) return null;
+                const start = toValidDate(
+                    c?.availableStartDate ??
+                    c?.available_start_date ??
+                    c?.startDate ??
+                    c?.start_date
+                );
+                if (!start) return null;
 
                 const days = Math.ceil((start.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
+                // Keep only upcoming or today; past dates should not be shown as upcoming.
+                if (days < 0) return null;
+
                 return {
-                    candidateId: c.id,
-                    name: c.name,
-                    position: c.position,
+                    candidateId: String(c.id ?? c._id ?? ''),
+                    name: String(c.name ?? 'Unknown'),
+                    position: String(c.position ?? 'Unknown'),
+                    joinDate: start,
                     daysUntil: days,
                 };
             })
-            .filter(Boolean)[0] || null;
+            .filter((item): item is NonNullable<typeof item> => Boolean(item))
+            .sort((a, b) => a.daysUntil - b.daysUntil)[0] || null;
     }, [candidates]);
 
     // ===== UI =====
