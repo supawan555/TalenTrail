@@ -184,19 +184,18 @@ export function AddCandidateModal({ open, onClose, onAdd, candidate }: AddCandid
     const candidateData = {
       id: candidate?.id || Date.now().toString(),
       name: data.name,
-      email: candidate?.email || 'candidate@example.com', // Default email
-      phone: candidate?.phone || '+1 234 567 8900', // Default phone
+      email: candidate?.email , // Default email
+      phone: candidate?.phone , // Default phone
       position: selectedPosition,
       department: candidate?.department || getDepartmentFromPosition(selectedPosition),
-      location: candidate?.location || 'Remote', // Default location
-      matchScore: candidate?.matchScore || Math.floor(Math.random() * 30) + 70, // Random score between 70-100
+      matchScore: candidate?.matchScore , 
       stage: candidate?.stage || ('applied' as const),
       appliedDate: candidate?.appliedDate || new Date().toISOString().split('T')[0],
-      skills: candidate?.skills || ['JavaScript', 'React', 'TypeScript'], // Default skills
-      salary: candidate?.salary || '$80,000 - $100,000', // Default salary
-      availability: candidate?.availability || 'Immediate', // Default availability
+      skills: candidate?.skills , // Default skills
+      salary: candidate?.salary , // Default salary
+      availability: candidate?.availability , // Default availability
       resumeUrl: uploadedResumeUrl || (resumeFile ? URL.createObjectURL(resumeFile) : candidate?.resumeUrl),
-      resumeAnalysis: uploadedResumeAnalysis || candidate?.resumeAnalysis || null,
+      resumeAnalysis: uploadedResumeAnalysis  || null,
       notes: candidate?.notes || []
     };
 

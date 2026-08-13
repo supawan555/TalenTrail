@@ -25,6 +25,7 @@ from app.routers import settings as settings_router
 from app.routers import notes as notes_router
 from app.services.job_preload import register_startup
 from app.services.auto_archive_hired import register_auto_archive
+from app.ml.health import register_llm_healthcheck
 from app.utils.file_storage import UPLOAD_DIR
 
 app = FastAPI(title="TalentTail API", version="0.1.0")
@@ -84,6 +85,7 @@ app.include_router(notes_router.router)
 # Startup preload
 register_startup(app)
 register_auto_archive(app)
+register_llm_healthcheck(app)
 
 
 @app.get("/")
@@ -93,4 +95,13 @@ async def root():
 @app.get("/health")
 async def health_check():
     """Health check endpoint for frontend polling."""
-    return {"status": "healthy", "service": "TalentTrail API"}
+    report = getattr(app.state, "llm_health", None)
+    return {
+        "status": "healthy",
+        "service": "TalentTrail API",
+        "scoring": {
+            "ok": bool(report and report.ok),
+            "model": report.model if report else None,
+            "problems": report.problems if report else ["healthcheck not run"],
+        },
+    }
