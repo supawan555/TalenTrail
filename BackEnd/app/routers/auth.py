@@ -13,9 +13,22 @@ from app.models.auth import (
     LoginResponse,
     VerifyOtpRequest,
     TokenResponse,
+    ForgotPasswordRequest,
+    VerifyResetOtpRequest,
+    VerifyResetOtpResponse,
+    ResetPasswordRequest,
 )
 from app.db import auth_users_collection, auth_sessions_collection
-from app.services.auth import hash_password, verify_password, create_pending_session, verify_totp_code
+from app.services.auth import (
+    hash_password,
+    verify_password,
+    create_pending_session,
+    verify_totp_code,
+    create_password_reset_otp,
+    verify_password_reset_otp,
+    consume_password_reset_token,
+)
+from app.services.email import send_password_reset_otp_email
 
 DEV_FRONTEND_ORIGINS = {
     "http://localhost:3000",
@@ -160,4 +173,32 @@ async def logout(response: Response, request: Request):
         secure=cookie_opts["secure"],
     )
     return {"message": "Logout successful"}
+
+
+# ===== Forgot password: request code -> verify code -> reset password =====
+
+@router.post("/forgot-password")
+async def auth_forgot_password(req: ForgotPasswordRequest):
+    email = req.email.strip().lower()
+    user = auth_users_collection.find_one({"email": email})
+    if user:
+        code = create_password_reset_otp(email)
+        send_password_reset_otp_email(email, code)
+    # Always return a generic response so existing accounts can't be enumerated
+    return {"message": "If that email is registered, a verification code has been sent."}
+
+
+@router.post("/verify-reset-otp", response_model=VerifyResetOtpResponse)
+async def auth_verify_reset_otp(req: VerifyResetOtpRequest):
+    email = req.email.strip().lower()
+    reset_token = verify_password_reset_otp(email, req.code)
+    return VerifyResetOtpResponse(resetToken=reset_token)
+
+
+@router.post("/reset-password")
+async def auth_reset_password(req: ResetPasswordRequest):
+    email = consume_password_reset_token(req.resetToken)
+    hashed = hash_password(req.new_password)
+    auth_users_collection.update_one({"email": email}, {"$set": {"password_hash": hashed}})
+    return {"message": "Password reset successful"}
 

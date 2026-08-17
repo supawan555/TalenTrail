@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, constr
 from typing import Optional
 
 
@@ -33,3 +33,21 @@ class VerifyOtpRequest(BaseModel):
 class TokenResponse(BaseModel):
     accessToken: str
     tokenType: str = "bearer"
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class VerifyResetOtpRequest(BaseModel):
+    email: EmailStr
+    code: constr(strip_whitespace=True, min_length=6, max_length=6)
+
+
+class VerifyResetOtpResponse(BaseModel):
+    resetToken: str
+
+
+class ResetPasswordRequest(BaseModel):
+    resetToken: str
+    new_password: constr(strip_whitespace=True, min_length=8, max_length=128)

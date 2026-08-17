@@ -31,6 +31,7 @@ export function CandidateProfile({
     showArchiveDialog,
     setShowArchiveDialog,
     archiveType,
+    setArchiveType,
     archiveReason,
     setArchiveReason,
     startDateInput,
@@ -53,6 +54,11 @@ export function CandidateProfile({
     onDropOff,
   });
 
+  const handleArchiveSelect = (value: string) => {
+    setArchiveType(value as 'reject' | 'drop-off');
+    setShowArchiveDialog(true);
+  };
+
   return (
     <CandidateProfileUI
       liveCandidate={liveCandidate}
@@ -74,7 +80,7 @@ export function CandidateProfile({
       onOpenEditModal={() => setShowEditModal(true)}
       onOpenDeleteDialog={() => setShowDeleteDialog(true)}
       onOpenNextStageDialog={() => setShowNextStageDialog(true)}
-      onArchiveSelect={handleArchive}
+      onArchiveSelect={handleArchiveSelect}
       onCloseEditModal={() => setShowEditModal(false)}
       onCloseDeleteDialog={() => setShowDeleteDialog(false)}
       onCloseNextStageDialog={() => setShowNextStageDialog(false)}

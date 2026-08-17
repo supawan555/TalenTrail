@@ -25,6 +25,7 @@ export function Login({ onShowRegister }: LoginProps) {
     healthCheckAttempts,
     handleSignIn,
     handleVerifyOtp,
+    handleForgotPassword,
   } = useLogin();
 
   if (isCheckingBackend) {
@@ -49,6 +50,7 @@ export function Login({ onShowRegister }: LoginProps) {
       onSubmit={handleSignIn}
       onVerifyOtp={handleVerifyOtp}
       onShowRegister={onShowRegister}
+      onForgotPassword={handleForgotPassword}
     />
   );
 }
