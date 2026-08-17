@@ -33,10 +33,19 @@ async def process_candidate_ml_pipeline(candidate_data: dict, resume_path: str =
             job_doc = job_collection.find_one({"role": {"$regex": f"^{position}$", "$options": "i"}})
             if job_doc:
                 analysis_result = analyze_resume(resume_text, job_doc.get("description", ""))
-                score = round(float(analysis_result.get("final_score", 0)), 2)
-                
+
+                # Never coerce a non-scored result into a number. A null
+                # matchScore means "not scored"; 0 means "scored zero".
+                final_score = analysis_result.get("final_score")
+                score = round(float(final_score), 2) if final_score is not None else None
+                if score is None:
+                    print(
+                        f"Matching not scored ({analysis_result.get('status')}): "
+                        f"{analysis_result.get('error')}"
+                    )
+
                 candidate_data["matchScore"] = score
-                
+
                 # เช็คก่อนว่า resumeAnalysis เป็น dict มั้ย ถ้าเป็น None ให้เสกเป็น dict ใหม่เลย
                 if not isinstance(candidate_data.get("resumeAnalysis"), dict):
                     candidate_data["resumeAnalysis"] = {}

@@ -18,6 +18,7 @@ import { Notes } from './pages/Notes';
 import { Settings } from './pages/Settings';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
+import { ForgotPassword } from './pages/ForgotPassword';
 import { ScrollToTopOnCandidate } from './hooks/scroll-to-top-on-candidate';
 //Hooks
 import { useCandidates } from './hooks/useApp';
@@ -202,6 +203,7 @@ function AppContent() {
           />
         }
       />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
 
       {/* 2. Protected Routes: ต้อง Login ก่อนถึงจะเข้าได้ */}
       <Route element={<ProtectedRoute />}>

@@ -20,6 +20,14 @@ class Settings(BaseSettings):
     PRIMARY_DB: str = Field(default="TalentTail")
     HR_DB: str = Field(default="hr_platform")
 
+    SMTP_HOST: str = Field(default="")
+    SMTP_PORT: int = Field(default=587)
+    SMTP_USER: str = Field(default="")
+    SMTP_PASSWORD: str = Field(default="")
+    SMTP_FROM_EMAIL: str = Field(default="no-reply@talentrail.app")
+    SMTP_FROM_NAME: str = Field(default="TalentTrail")
+    SMTP_USE_TLS: bool = Field(default=True)
+
     model_config = SettingsConfigDict(
         env_file=(
             os.path.join(BACKEND_DIR, ".env"),    

@@ -94,6 +94,11 @@ export const useLogin = () => {
     }
   };
 
+  // ===== forgot password =====
+  const handleForgotPassword = () => {
+    navigate('/forgot-password');
+  };
+
   return {
     // state
     showPassword,
@@ -115,5 +120,6 @@ export const useLogin = () => {
     // actions
     handleSignIn,
     handleVerifyOtp,
+    handleForgotPassword,
   };
 };

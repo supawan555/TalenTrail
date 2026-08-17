@@ -93,7 +93,14 @@ export const useNotes = () => {
                 }
             });
 
-            setAllNotes(prev => [res.data, ...prev]);
+            const cand = candidates.find(c => c.id === res.data.candidate_id);
+            const noteWithCand = {
+                ...res.data,
+                candidateName: cand?.name,
+                candidatePosition: cand?.position,
+            };
+
+            setAllNotes(prev => [noteWithCand, ...prev]);
             setNewNote('');
         } catch {
             toast.error('add note failed');

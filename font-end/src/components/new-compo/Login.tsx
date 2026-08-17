@@ -122,6 +122,7 @@ interface LoginUIProps {
   onSubmit: (e: React.FormEvent) => void;
   onVerifyOtp: () => void;
   onShowRegister: () => void;
+  onForgotPassword: () => void;
 }
 
 export function LoginUI({
@@ -141,6 +142,7 @@ export function LoginUI({
   onSubmit,
   onVerifyOtp,
   onShowRegister,
+  onForgotPassword,
 }: LoginUIProps) {
   return (
     <>
@@ -223,6 +225,7 @@ export function LoginUI({
                 <div className="flex justify-end">
                   <button
                     type="button"
+                    onClick={onForgotPassword}
                     className="text-sm text-indigo-600 hover:text-indigo-700 hover:underline transition-colors disabled:text-gray-400 disabled:cursor-not-allowed"
                     disabled={!isBackendReady}
                   >

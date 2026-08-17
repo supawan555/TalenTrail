@@ -2,7 +2,7 @@
 from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from ..config import settings 
-from ..db import auth_sessions_collection, auth_users_collection
+from ..db import auth_sessions_collection, auth_users_collection, auth_password_resets_collection
 from fastapi.security import OAuth2PasswordBearer
 from typing import Annotated
 from fastapi import Depends, HTTPException, status, Request
@@ -13,6 +13,7 @@ import hashlib
 import hmac
 import logging
 import os
+import random
 import uuid
 import pyotp
 import bcrypt
@@ -128,3 +129,72 @@ def create_pending_session(user_id) -> str:
 
 def verify_totp_code(secret: str, code: str) -> bool:
     return pyotp.TOTP(secret).verify(code, valid_window=1)
+
+
+# ===== Forgot-password email-OTP flow =====
+OTP_TTL_MINUTES = 10
+RESET_TOKEN_TTL_MINUTES = 15
+MAX_OTP_ATTEMPTS = 5
+
+
+def generate_otp_code() -> str:
+    return f"{random.randint(0, 999999):06d}"
+
+
+def create_password_reset_otp(email: str) -> str:
+    """Create (or replace) a pending password-reset OTP for the email and return the raw code."""
+    code = generate_otp_code()
+    auth_password_resets_collection.update_one(
+        {"email": email},
+        {
+            "$set": {
+                "email": email,
+                "otp_hash": hash_password(code),
+                "stage": "otp_pending",
+                "attempts": 0,
+                "expires_at": (datetime.utcnow() + timedelta(minutes=OTP_TTL_MINUTES)).isoformat(),
+            },
+            "$unset": {"reset_token": "", "reset_token_expires_at": ""},
+        },
+        upsert=True,
+    )
+    return code
+
+
+def verify_password_reset_otp(email: str, code: str) -> str:
+    """Verify a previously-sent OTP and return a short-lived reset token on success."""
+    record = auth_password_resets_collection.find_one({"email": email, "stage": "otp_pending"})
+    if not record:
+        raise HTTPException(status_code=400, detail="No verification code was requested for this email")
+    if datetime.fromisoformat(record["expires_at"]) < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Verification code has expired")
+    if record.get("attempts", 0) >= MAX_OTP_ATTEMPTS:
+        raise HTTPException(status_code=429, detail="Too many attempts, please request a new code")
+    if not verify_password(code, record["otp_hash"]):
+        auth_password_resets_collection.update_one({"_id": record["_id"]}, {"$inc": {"attempts": 1}})
+        raise HTTPException(status_code=401, detail="Invalid verification code")
+
+    reset_token = uuid.uuid4().hex
+    auth_password_resets_collection.update_one(
+        {"_id": record["_id"]},
+        {
+            "$set": {
+                "stage": "verified",
+                "reset_token": reset_token,
+                "reset_token_expires_at": (datetime.utcnow() + timedelta(minutes=RESET_TOKEN_TTL_MINUTES)).isoformat(),
+            },
+            "$unset": {"otp_hash": "", "attempts": ""},
+        },
+    )
+    return reset_token
+
+
+def consume_password_reset_token(reset_token: str) -> str:
+    """Validate a reset token, consume it, and return the associated email."""
+    record = auth_password_resets_collection.find_one({"reset_token": reset_token, "stage": "verified"})
+    if not record:
+        raise HTTPException(status_code=401, detail="Invalid or expired reset token")
+    if datetime.fromisoformat(record["reset_token_expires_at"]) < datetime.utcnow():
+        raise HTTPException(status_code=401, detail="Reset token has expired")
+    auth_password_resets_collection.delete_one({"_id": record["_id"]})
+    return record["email"]
