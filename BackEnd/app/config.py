@@ -14,6 +14,7 @@ PROJECT_ROOT = os.path.dirname(BACKEND_DIR)
 
 class Settings(BaseSettings):
     SECRET_KEY_AUTHEN: str = Field(default_factory=lambda: token_urlsafe(32))
+    TOTP_ENCRYPTION_KEY: str = Field(default_factory=lambda: token_urlsafe(32))
     MONGO_DB_URI: str = Field(
         validation_alias=AliasChoices("MONGO_DB_URI", "MONGO_URL"),
     )
@@ -27,6 +28,9 @@ class Settings(BaseSettings):
     SMTP_FROM_EMAIL: str = Field(default="no-reply@talentrail.app")
     SMTP_FROM_NAME: str = Field(default="TalentTrail")
     SMTP_USE_TLS: bool = Field(default=True)
+
+    GEMINI_API_KEY: str = Field(default="")
+    GEMINI_MODEL: str = Field(default="gemini-3.6-flash")
 
     model_config = SettingsConfigDict(
         env_file=(

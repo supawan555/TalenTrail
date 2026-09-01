@@ -49,3 +49,12 @@ BackEnd/tests/
 .pytest_cache/
 .mypy_cache/
 .cache/
+
+# =====================
+# Test artifacts
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+pytest-report.xml
+*.log

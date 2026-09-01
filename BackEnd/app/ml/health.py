@@ -1,30 +1,23 @@
 """Startup healthcheck for the resume-scoring stack.
 
-A missing python package and an unreachable Ollama used to be swallowed inside
-``_run_llm_analysis`` and reported as ``score: 0`` for every candidate, capping
-every final score at 30. Scoring now reports those as an explicit
-``model_unavailable`` status, but the failure should still be caught at boot
-rather than discovered one candidate at a time.
+A missing python package and an unreachable/misconfigured LLM used to be
+swallowed inside ``_run_llm_analysis`` and reported as ``score: 0`` for every
+candidate, capping every final score at 30. Scoring now reports those as an
+explicit ``model_unavailable`` status, but the failure should still be caught
+at boot rather than discovered one candidate at a time.
 """
 
 from __future__ import annotations
 
-import json
 import logging
 import os
-import urllib.error
-import urllib.request
 from dataclasses import dataclass, field
 from typing import Optional
 
-from app.ml.resume_matcher import OLLAMA_BASE_URL, OLLAMA_MODEL
+from app.config import settings
+from app.ml.resume_matcher import GEMINI_MODEL
 
 logger = logging.getLogger("talenttrail.ml.health")
-
-# OLLAMA_BASE_URL is imported, not redefined. The healthcheck must probe the
-# exact endpoint the scoring call uses - when the two drifted apart, boot
-# reported "resume scoring ready" while every candidate failed with
-# model_unavailable / Connection refused.
 
 # Escape hatch for frontend-only development. Safe now only because scoring
 # reports model_unavailable explicitly instead of returning silent zeros.
@@ -41,49 +34,42 @@ class HealthReport:
 
     def summary(self) -> str:
         if self.ok:
-            digest = (self.model_digest or "")[:12]
-            return f"resume scoring ready (model={self.model} digest={digest})"
+            return f"resume scoring ready (model={self.model})"
         return "resume scoring UNAVAILABLE:\n  - " + "\n  - ".join(self.problems)
 
 
-def _list_ollama_models(timeout: float) -> list[dict]:
-    url = f"{OLLAMA_BASE_URL.rstrip('/')}/api/tags"
-    with urllib.request.urlopen(url, timeout=timeout) as response:
-        payload = json.loads(response.read().decode("utf-8"))
-    return payload.get("models", [])
-
-
 def check_llm_stack(timeout: float = 5.0) -> HealthReport:
-    """Verify imports, Ollama reachability, the pulled model, and SBERT."""
+    """Verify imports, the Gemini API key, and SBERT."""
     problems: list[str] = []
-    model_digest: Optional[str] = None
 
     try:
         import langchain_core.prompts  # noqa: F401
-        import langchain_ollama  # noqa: F401
+        from langchain_google_genai import ChatGoogleGenerativeAI  # noqa: F401
     except ImportError as exc:
         problems.append(
             f"langchain import failed ({exc}). Run: pip install -r requirements.txt"
         )
 
-    try:
-        models = _list_ollama_models(timeout)
-        names = {m.get("name") for m in models}
-        if OLLAMA_MODEL not in names:
-            available = ", ".join(sorted(n for n in names if n)) or "none"
-            problems.append(
-                f"model {OLLAMA_MODEL!r} is not pulled (available: {available}). "
-                f"Run: ollama pull {OLLAMA_MODEL}"
-            )
-        else:
-            model_digest = next(
-                (m.get("digest") for m in models if m.get("name") == OLLAMA_MODEL),
-                None,
-            )
-    except (urllib.error.URLError, OSError, ValueError) as exc:
+    if not settings.GEMINI_API_KEY:
         problems.append(
-            f"Ollama unreachable at {OLLAMA_BASE_URL} ({exc}). Run: ollama serve"
+            "GEMINI_API_KEY is not set. Add it to the backend .env file."
         )
+    else:
+        try:
+            from google import genai
+            from google.genai.types import HttpOptions
+
+            client = genai.Client(
+                api_key=settings.GEMINI_API_KEY,
+                http_options=HttpOptions(timeout=int(timeout * 1000)),
+            )
+            # Cheap call that both confirms the API key is valid and that the
+            # configured model name actually exists.
+            client.models.get(model=GEMINI_MODEL)
+        except Exception as exc:
+            problems.append(
+                f"Gemini unreachable or misconfigured (model={GEMINI_MODEL}): {exc}"
+            )
 
     try:
         from sentence_transformers import SentenceTransformer  # noqa: F401
@@ -99,8 +85,7 @@ def check_llm_stack(timeout: float = 5.0) -> HealthReport:
     return HealthReport(
         ok=not problems,
         problems=problems,
-        model=OLLAMA_MODEL,
-        model_digest=model_digest,
+        model=GEMINI_MODEL,
         sbert_available=sbert_available,
     )
 
