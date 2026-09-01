@@ -29,6 +29,9 @@ export function Register({ onRegister, onBackToLogin }: RegisterProps) {
     showOtpModal,
     setShowOtpModal,
     otpAuthUrl,
+    otpSecret,
+    showSecret,
+    setShowSecret,
     handleRegister,
     copyToClipboard,
   } = useRegister(onRegister);
@@ -58,6 +61,9 @@ export function Register({ onRegister, onBackToLogin }: RegisterProps) {
       showOtpModal={showOtpModal}
       setShowOtpModal={setShowOtpModal}
       otpAuthUrl={otpAuthUrl}
+      otpSecret={otpSecret}
+      showSecret={showSecret}
+      setShowSecret={setShowSecret}
       handleRegister={handleRegister}
       copyToClipboard={copyToClipboard}
     />
