@@ -26,3 +26,5 @@ langchain-ollama
 
 # Testing
 pytest
+httpx
+mongomock
