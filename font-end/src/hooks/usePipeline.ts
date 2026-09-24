@@ -109,7 +109,6 @@ export const usePipeline = (propCandidates?: Candidate[]) => {
                         name: c.name ?? 'Unknown',
                         email: c.email ?? '',
                         phone: c.phone ?? '',
-                        avatar: c.avatar ?? '',
                         position: c.position ?? (c.role ?? 'Unknown'),
                         department: normalizeDepartment(c.department),
                         experience: c.experience ?? 'mid',

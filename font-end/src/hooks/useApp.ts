@@ -87,7 +87,6 @@ export const useCandidates = (user: any, authLoading: boolean) => {
       name: raw?.name ?? '',
       email: raw?.email ?? '',
       phone: raw?.phone ?? '',
-      avatar: raw?.avatar ?? '',
       position: raw?.position ?? '',
       department: normalizeDepartment(raw?.department),
       experience: raw?.experience ?? '',

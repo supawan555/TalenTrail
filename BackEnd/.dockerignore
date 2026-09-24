@@ -2,3 +2,11 @@ __pycache__
 *.pyc
 .venv
 .git
+
+# Keep the build context small and secrets out of images
+**/__pycache__/
+tests/
+uploads/
+app/uploads/
+.env
+**/.env

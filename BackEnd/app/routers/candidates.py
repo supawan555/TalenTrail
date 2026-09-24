@@ -35,6 +35,25 @@ if not logger.handlers:
     logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
+
+def _resume_path_from_url(resume_url: str) -> Optional[str]:
+    """Map a "/uploads/<name>" URL to a file inside UPLOAD_DIR, else None.
+
+    resumeUrl comes from the client, so it must not be able to point the resume
+    parser at arbitrary files on the server (e.g. "/../../.env").
+    """
+    prefix = "/uploads/"
+    if not isinstance(resume_url, str) or not resume_url.startswith(prefix):
+        return None
+    root = os.path.realpath(UPLOAD_DIR)
+    candidate = os.path.realpath(os.path.join(root, resume_url[len(prefix):]))
+    try:
+        if os.path.commonpath([root, candidate]) != root:
+            return None
+    except ValueError:  # e.g. different drives on Windows
+        return None
+    return candidate
+
 # Show List candidates
 @router.get("")
 async def list_candidates(
@@ -61,7 +80,6 @@ async def create_candidate(
     notes: Optional[str] = Form(None),
     position: Optional[str] = Form(None),
     experience: Optional[str] = Form(None),
-    avatar: Optional[UploadFile] = File(None),
     resume: Optional[UploadFile] = File(None),
 ):
     content_type = request.headers.get("content-type", "").lower()
@@ -72,16 +90,14 @@ async def create_candidate(
         resume_url = payload.get("resumeUrl")
 
         if resume_url:
-            relative_path = resume_url.lstrip("/")
-            full_path = os.path.abspath(relative_path)
-            payload["resume_path"] = full_path
+            payload["resume_path"] = _resume_path_from_url(resume_url)
         print(f"Received JSON payload: {payload}")
     else:
         # ถ้ามาเป็น Form-data ก็จับยัดใส่ dict
-        res_path, res_url, ava_url = handle_candidate_uploads(resume, avatar)
+        res_path, res_url = handle_candidate_uploads(resume)
         payload = {
-            "name": name, "email": email, "phone": phone, 
-            "resume_path": res_path, "resume_url": res_url, "avatar": ava_url,
+            "name": name, "email": email, "phone": phone,
+            "resume_path": res_path, "resume_url": res_url,
             "position": position, "experience": experience
         }
         
@@ -114,7 +130,6 @@ async def create_candidate_slash(
     notes: Optional[str] = Form(None),
     position: Optional[str] = Form(None),
     experience: Optional[str] = Form(None),
-    avatar: Optional[UploadFile] = File(None),
     resume: Optional[UploadFile] = File(None),
 ):
     # Delegate to main handler for logic consistency
@@ -126,7 +141,6 @@ async def create_candidate_slash(
         notes=notes,
         position=position,
         experience=experience,
-        avatar=avatar,
         resume=resume,
     )
 

@@ -13,7 +13,7 @@ import hashlib
 import hmac
 import logging
 import os
-import random
+import secrets
 import uuid
 import pyotp
 import bcrypt
@@ -73,10 +73,8 @@ async def check_token(token: Annotated[str, Depends(oauth2_scheme)]):
 # สร้าง Dependency ใหม่สำหรับอ่าน Cookie
 async def get_current_user_from_cookie(request: Request):
     token = request.cookies.get("access_token")
-    #เช็ค cookie ใน log
-    logger.warning("access_token cookie value: %s", token)
-    print(f"[auth] access_token cookie value: {token}")
-    
+    # Never log the token itself: anyone reading logs could replay it.
+
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -138,7 +136,8 @@ MAX_OTP_ATTEMPTS = 5
 
 
 def generate_otp_code() -> str:
-    return f"{random.randint(0, 999999):06d}"
+    # secrets = OS CSPRNG; `random` is predictable and unsuitable for codes
+    return f"{secrets.randbelow(1_000_000):06d}"
 
 
 def create_password_reset_otp(email: str) -> str:

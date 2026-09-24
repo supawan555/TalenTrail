@@ -19,7 +19,6 @@ export interface Candidate {
   name: string;
   email: string;
   phone: string;
-  avatar?: string;
   position: string;
   department: string;
   experience: string;
@@ -66,7 +65,6 @@ export const mockCandidates: Candidate[] = [
     name: 'Sarah Johnson',
     email: 'sarah.johnson@email.com',
     phone: '+1 (555) 123-4567',
-    avatar: 'https://images.unsplash.com/photo-1494790108755-2616b9562932?w=150&h=150&fit=crop&crop=face',
     position: 'Senior Frontend Developer',
     department: 'Engineering',
     experience: '5+ years',
@@ -106,7 +104,6 @@ export const mockCandidates: Candidate[] = [
     name: 'Michael Chen',
     email: 'michael.chen@email.com',
     phone: '+1 (555) 234-5678',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face',
     position: 'Full Stack Developer',
     department: 'Engineering',
     experience: '3+ years',
@@ -139,7 +136,6 @@ export const mockCandidates: Candidate[] = [
     name: 'Emily Rodriguez',
     email: 'emily.rodriguez@email.com',
     phone: '+1 (555) 345-6789',
-    avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face',
     position: 'UX Designer',
     department: 'Design',
     experience: '4+ years',
@@ -179,7 +175,6 @@ export const mockCandidates: Candidate[] = [
     name: 'David Thompson',
     email: 'david.thompson@email.com',
     phone: '+1 (555) 456-7890',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
     position: 'DevOps Engineer',
     department: 'Engineering',
     experience: '6+ years',
@@ -205,7 +200,6 @@ export const mockCandidates: Candidate[] = [
     name: 'Lisa Park',
     email: 'lisa.park@email.com',
     phone: '+1 (555) 567-8901',
-    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&crop=face',
     position: 'Product Manager',
     department: 'Product',
     experience: '7+ years',
