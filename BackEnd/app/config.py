@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = Field(default="")
     GEMINI_MODEL: str = Field(default="gemini-3.6-flash")
 
+    # Dev convenience: let ADMIN accounts log in without the TOTP step.
+    # Off by default; set ALLOW_ADMIN_2FA_BYPASS=true only in a local .env.
+    ALLOW_ADMIN_2FA_BYPASS: bool = Field(default=False)
+
     model_config = SettingsConfigDict(
         env_file=(
             os.path.join(BACKEND_DIR, ".env"),    

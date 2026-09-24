@@ -14,7 +14,6 @@ interface NoteOut {
 type NoteWithCandidate = NoteOut & {
   candidateName?: string;
   candidatePosition?: string;
-  candidateAvatar?: string;
 };
 
 interface CandidateLite {

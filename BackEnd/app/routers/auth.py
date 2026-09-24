@@ -30,6 +30,11 @@ from app.services.auth import (
 )
 from app.services.email import send_password_reset_otp_email
 from app.services.crypto import encrypt_secret, decrypt_secret
+from app.config import settings
+
+# Roles a visitor may pick on the sign-up form. ADMIN is deliberately absent:
+# admin accounts are granted directly in the database, never self-assigned.
+SELF_SERVICE_ROLES = {"hr-recruiter", "hiring-manager", "management"}
 
 DEV_FRONTEND_ORIGINS = {
     "http://localhost:3000",
@@ -64,6 +69,8 @@ async def auth_register(req: User):
     email = req.email.strip().lower()
     if not email or not req.password:
         raise HTTPException(status_code=400, detail="Email and password are required")
+    if req.role not in SELF_SERVICE_ROLES:
+        raise HTTPException(status_code=400, detail="Invalid role")
     if auth_users_collection.find_one({"email": email}):
         raise HTTPException(status_code=409, detail="Email already registered")
 
@@ -93,8 +100,8 @@ async def auth_login(req: LoginRequest, response: Response, request: Request):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
     
-    # Skip 2FA for ADMIN role: issue access token immediately and set cookie
-    if str(user.get("role", "")).upper() == "ADMIN":
+    # Dev shortcut: skip 2FA for ADMIN, only when explicitly enabled in the env
+    if settings.ALLOW_ADMIN_2FA_BYPASS and str(user.get("role", "")).upper() == "ADMIN":
         access_token_expires = timedelta(minutes=1440)
         access_token = create_access_token(
             data={"sub": user["email"], "role": "ADMIN"},
@@ -126,10 +133,11 @@ async def auth_verify_otp(req: VerifyOtpRequest, response: Response, request: Re
     if not session:
         raise HTTPException(status_code=401, detail="Invalid pending token")
     try:
-        if datetime.fromisoformat(session.get("expires_at")) < datetime.utcnow():
-            raise HTTPException(status_code=401, detail="Pending token expired")
-    except Exception:
-        pass
+        expires_at = datetime.fromisoformat(session.get("expires_at"))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=401, detail="Invalid pending token")
+    if expires_at < datetime.utcnow():
+        raise HTTPException(status_code=401, detail="Pending token expired")
     user = auth_users_collection.find_one({"_id": session["user_id"]})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")

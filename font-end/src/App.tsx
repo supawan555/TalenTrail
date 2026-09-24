@@ -138,7 +138,6 @@ function AppContent() {
         name: 'Loading…',
         email: '',
         phone: '',
-        avatar: '',
         position: '',
         department: '',
         experience: '',

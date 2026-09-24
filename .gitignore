@@ -58,3 +58,5 @@ coverage.xml
 htmlcov/
 pytest-report.xml
 *.log
+
+.claude

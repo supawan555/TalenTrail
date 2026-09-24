@@ -1,8 +1,7 @@
-"""Upload routes for file handling (resume, profile picture) with legacy compatibility.
+"""Upload routes for resume files with legacy compatibility.
 
 Current public static URL base: /uploads/<filename>
-Frontend (older code) still calls /upload/profile-picture and /upload/resume which returned 404.
-We provide both new canonical endpoints under /uploads/* and legacy endpoints under /upload/*.
+We provide the canonical endpoint under /uploads/* and a legacy endpoint under /upload/*.
 """
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from app.utils.file_storage import save_upload_file, unique_name, UPLOAD_DIR
@@ -23,30 +22,19 @@ def _store_file(prefix: str, file: UploadFile, default_ext: str) -> dict:
     return {"path": dest, "url": f"/uploads/{filename}"}
 
 
+# Files under /uploads are served by StaticFiles, which picks the Content-Type
+# from the extension. The stored extension must therefore never be something a
+# browser would execute (.html, .svg, ...). The client's content_type header is
+# only a hint - it is attacker-controlled - so the extension is what matters.
 @router.post("/resume")
 async def upload_resume(file: UploadFile = File(...)):
-    if not (file.filename or "").lower().endswith(".pdf") and file.content_type != "application/pdf":
+    if not (file.filename or "").lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Resume must be a PDF file")
     return _store_file("resume", file, ".pdf")
 
 
-@router.post("/profile-picture")
-async def upload_profile_picture(file: UploadFile = File(...)):
-    if not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Profile picture must be an image file")
-    # Preserve original extension if possible; align filename prefix with legacy 'profile_'
-    ext = os.path.splitext(file.filename or "profile.png")[1] or ".png"
-    data = _store_file("profile", file, ext)
-    return data
-
-
-# Legacy endpoints mapping (delegate to canonical implementations)
+# Legacy endpoint mapping (delegates to the canonical implementation)
 
 @legacy_router.post("/resume")
 async def legacy_upload_resume(file: UploadFile = File(...)):
     return await upload_resume(file)
-
-
-@legacy_router.post("/profile-picture")
-async def legacy_upload_profile_picture(file: UploadFile = File(...)):
-    return await upload_profile_picture(file)
