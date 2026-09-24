@@ -1,0 +1,4 @@
+Not a real image. Used only for the "non-PDF resume upload is rejected" E2E negative test.
+The frontend rejects on file.type / filename extension before ever reading content
+(see font-end/src/components/ui/add-candidate-modal.tsx handleFileChange), so the
+actual bytes here are irrelevant - only the .jpg extension matters.

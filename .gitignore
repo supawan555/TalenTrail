@@ -43,7 +43,6 @@ env/
 .venv/
 BackEnd/env/
 BackEnd/.venv/
-BackEnd/tests/
 
 # Tooling caches
 .pytest_cache/
