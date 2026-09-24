@@ -20,10 +20,9 @@ from ..services.auth import get_current_user_from_cookie, require_role
 from app.db import candidate_collection
 from app.db import job_collection
 from app.db import candidate_notes_collection
-from app.utils.file_storage import save_upload_file, unique_name, UPLOAD_DIR
+from app.utils import storage
 from app.ml.resume_extractor import extract_resume_text, extract_resume_data as ml_extract_data
 from app.ml.resume_matcher import analyze_resume
-import os
 
 router = APIRouter(prefix="/candidates", tags=["candidates"], dependencies=[Depends(get_current_user_from_cookie)])
 logger = logging.getLogger("talenttrail.ml")
@@ -35,24 +34,18 @@ if not logger.handlers:
     logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
+# Fields the server owns. A client must never set them: resume_file decides
+# which stored file is parsed and deleted, and resume_path is its legacy form
+# (an absolute disk path that delete_candidate used to os.remove()).
+SERVER_MANAGED_FIELDS = ("resume_file", "resume_path")
 
-def _resume_path_from_url(resume_url: str) -> Optional[str]:
-    """Map a "/uploads/<name>" URL to a file inside UPLOAD_DIR, else None.
 
-    resumeUrl comes from the client, so it must not be able to point the resume
-    parser at arbitrary files on the server (e.g. "/../../.env").
-    """
-    prefix = "/uploads/"
-    if not isinstance(resume_url, str) or not resume_url.startswith(prefix):
-        return None
-    root = os.path.realpath(UPLOAD_DIR)
-    candidate = os.path.realpath(os.path.join(root, resume_url[len(prefix):]))
-    try:
-        if os.path.commonpath([root, candidate]) != root:
-            return None
-    except ValueError:  # e.g. different drives on Windows
-        return None
-    return candidate
+def _resume_key(candidate: dict) -> Optional[str]:
+    """The storage key of a candidate's resume, from resume_file or its URL."""
+    key = candidate.get("resume_file")
+    if storage.is_valid_key(key):
+        return key
+    return storage.key_from_url(candidate.get("resume_url") or candidate.get("resumeUrl"))
 
 # Show List candidates
 @router.get("")
@@ -87,28 +80,28 @@ async def create_candidate(
     # 1. รวมข้อมูล (Normalizing Data)
     if "application/json" in content_type:
         payload = await request.json()
-        resume_url = payload.get("resumeUrl")
-
-        if resume_url:
-            payload["resume_path"] = _resume_path_from_url(resume_url)
+        for field in SERVER_MANAGED_FIELDS:
+            payload.pop(field, None)
+        # resumeUrl came from /upload/resume; map it to a storage key (or None)
+        payload["resume_file"] = storage.key_from_url(payload.get("resumeUrl"))
         print(f"Received JSON payload: {payload}")
     else:
         # ถ้ามาเป็น Form-data ก็จับยัดใส่ dict
-        res_path, res_url = handle_candidate_uploads(resume)
+        res_key, res_url = handle_candidate_uploads(resume)
         payload = {
             "name": name, "email": email, "phone": phone,
-            "resume_path": res_path, "resume_url": res_url,
+            "resume_file": res_key, "resume_url": res_url,
             "position": position, "experience": experience
         }
-        
+
 
     # 2. จัดการ Metadata & Cleanup
     payload.pop("id", None)
     payload.pop("matchScore", None)
     payload = init_candidate_metadata(payload)
 
-    # 3. รัน ML Pipeline 
-    payload = await process_candidate_ml_pipeline(payload, payload.get("resume_path"))
+    # 3. รัน ML Pipeline
+    payload = await process_candidate_ml_pipeline(payload, payload.get("resume_file"))
     
     # 4. บันทึกลง DB
     result = candidate_collection.insert_one(payload)
@@ -156,12 +149,13 @@ async def delete_candidate(candidate_id: str):
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
 
-    # 2. ลบไฟล์จริงในเครื่อง
-    resume_path = candidate.get("resume_path")
-    if resume_path and os.path.exists(resume_path):
+    # 2. ลบไฟล์เรซูเม่ (local disk หรือ Vercel Blob)
+    # Only ever by storage key - never a raw path taken from the record.
+    resume_key = _resume_key(candidate)
+    if resume_key:
         try:
-            os.remove(resume_path)
-            print(f"🗑️ Deleted file: {resume_path}")
+            storage.delete(resume_key)
+            print(f"🗑️ Deleted file: {resume_key}")
         except Exception as e:
             print(f"Could not delete file: {e}")
 
@@ -215,6 +209,8 @@ async def update_candidate(candidate_id: str, request: Request):
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
     payload.pop("id", None)
+    for field in SERVER_MANAGED_FIELDS:
+        payload.pop(field, None)
     # Normalize some field names from frontend
     if "resumeUrl" in payload and "resume_url" not in payload:
         payload["resume_url"] = payload.pop("resumeUrl")

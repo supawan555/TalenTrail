@@ -36,6 +36,19 @@ class Settings(BaseSettings):
     # Off by default; set ALLOW_ADMIN_2FA_BYPASS=true only in a local .env.
     ALLOW_ADMIN_2FA_BYPASS: bool = Field(default=False)
 
+    # Where uploaded resumes are stored: "local" (disk, for dev/Render) or
+    # "vercel_blob" (private Vercel Blob store; required on Vercel, whose disk
+    # is wiped between requests).
+    FILE_STORAGE: str = Field(default="local")
+    # Vercel rejects request bodies over 4.5 MB, so cap uploads below that.
+    MAX_UPLOAD_MB: int = Field(default=4)
+
+    # Vercel Cron calls /cron/* with "Authorization: Bearer <CRON_SECRET>".
+    CRON_SECRET: str = Field(default="")
+    # Run the 24h auto-archive loop inside the server process. Turn off on
+    # Vercel (instances are short-lived) and let Vercel Cron call /cron instead.
+    RUN_BACKGROUND_JOBS: bool = Field(default=True)
+
     model_config = SettingsConfigDict(
         env_file=(
             os.path.join(BACKEND_DIR, ".env"),    
