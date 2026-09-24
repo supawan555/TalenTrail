@@ -4,6 +4,8 @@ import os
 import re
 from typing import Any, Dict, Optional, Tuple
 
+from ..config import settings
+
 # Lazy import to avoid heavy dependencies at module import time
 try:
     from sentence_transformers import SentenceTransformer, util  # type: ignore
@@ -21,10 +23,10 @@ _MODEL = None
 # Result status contract
 #
 # A score of 0 used to mean four different things: a genuinely terrible
-# candidate, a missing python package, an unreachable Ollama, or a response the
-# parser threw away. Callers could not tell them apart, so every failure looked
-# like a hiring verdict. Status makes the difference explicit, and any status
-# other than SCORED carries score=None rather than a number.
+# candidate, a missing python package, an unreachable LLM provider, or a
+# response the parser threw away. Callers could not tell them apart, so every
+# failure looked like a hiring verdict. Status makes the difference explicit,
+# and any status other than SCORED carries score=None rather than a number.
 # --------------------------------------------------------------------------
 
 STATUS_SCORED = "scored"
@@ -36,34 +38,10 @@ NON_SCORED_STATUSES = frozenset(
     {STATUS_PARSE_ERROR, STATUS_MODEL_UNAVAILABLE, STATUS_INPUT_INVALID}
 )
 
-# Explicit tag rather than the bare "mistral" alias, so the resolved model is
-# visible in logs and the healthcheck can verify the exact tag is pulled.
-OLLAMA_MODEL = "mistral:latest"
-OLLAMA_TIMEOUT_S = 120.0
-
-
-def _resolve_ollama_base_url() -> str:
-    """Resolve the Ollama endpoint for the environment we are running in.
-
-    Inside a container ``localhost`` is the container itself, so an Ollama
-    running on the host machine is only reachable through
-    ``host.docker.internal``. Getting this wrong produces
-    ``[Errno 111] Connection refused`` on every scoring call.
-
-    This is the single source of truth: ``health.py`` imports it too, so the
-    startup healthcheck probes exactly the endpoint scoring will use. When the
-    two disagreed, the healthcheck reported "ready" and every candidate then
-    failed with model_unavailable.
-    """
-    configured = os.environ.get("OLLAMA_BASE_URL")
-    if configured:
-        return configured.rstrip("/")
-    if os.path.exists("/.dockerenv"):
-        return "http://host.docker.internal:11434"
-    return "http://localhost:11434"
-
-
-OLLAMA_BASE_URL = _resolve_ollama_base_url()
+# Gemini via the Google Generative AI API. Overridable so a faster/cheaper or
+# a newer model can be swapped in without a code change.
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL") or settings.GEMINI_MODEL
+GEMINI_TIMEOUT_S = 120.0
 
 # Keep prompt size bounded for predictable latency and cost.
 RESUME_CHAR_BUDGET = 3000
@@ -101,6 +79,28 @@ def _clamp_score(value: Any) -> Optional[int]:
         return None
 
     return max(0, min(100, int(number)))
+
+
+def _extract_text_content(content: Any) -> str:
+    """Flatten a LangChain message ``.content`` into plain text.
+
+    Ollama returned a plain string. Gemini returns a list of content blocks
+    (e.g. ``[{"type": "text", "text": "...", "extras": {"signature": "..."}}]``),
+    so a bare ``str(list)`` stringifies the block's Python repr - signature
+    payload and all - instead of the JSON text inside it.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict):
+                if "text" in item:
+                    parts.append(str(item["text"]))
+            else:
+                parts.append(str(item))
+        return "".join(parts)
+    return str(content or "")
 
 
 def _safe_string_list(value: Any) -> list[str]:
@@ -285,6 +285,27 @@ _RETRY_INSTRUCTION = (
 )
 
 
+def _is_quota_exhausted(exc: BaseException) -> bool:
+    """Detect a Gemini 429 RESOURCE_EXHAUSTED (daily free-tier quota) error.
+
+    ``google.genai.errors.ClientError`` carries structured ``code``/``status``
+    fields, but langchain wraps it in a bare ``ChatGoogleGenerativeAIError``
+    whose only content is a formatted string. Walk the cause chain first for
+    the structured fields; fall back to the message text if a future version
+    stops chaining the original error.
+    """
+    seen: set[int] = set()
+    current: Optional[BaseException] = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if getattr(current, "code", None) == 429:
+            return True
+        if getattr(current, "status", None) == "RESOURCE_EXHAUSTED":
+            return True
+        current = current.__cause__
+    return "RESOURCE_EXHAUSTED" in str(exc)
+
+
 def _build_prompt(chat_prompt_template, strict_retry: bool = False):
     """Construct the scoring prompt.
 
@@ -310,7 +331,7 @@ def _build_prompt(chat_prompt_template, strict_retry: bool = False):
 
 
 def _run_llm_analysis(resume_text: str, job_description: str) -> Dict[str, Any]:
-    """Run LangChain + Ollama analysis and return a status-tagged result.
+    """Run LangChain + Gemini analysis and return a status-tagged result.
 
     Never returns a fabricated score. Every failure mode is reported as its own
     status with score=None.
@@ -332,15 +353,21 @@ def _run_llm_analysis(resume_text: str, job_description: str) -> Dict[str, Any]:
         return _llm_failure(STATUS_INPUT_INVALID, "job_description is empty")
 
     try:
-        # Local LLM via Ollama only. No OpenAI dependency.
         from langchain_core.prompts import ChatPromptTemplate
-        from langchain_ollama import ChatOllama  # type: ignore
+        from langchain_google_genai import ChatGoogleGenerativeAI  # type: ignore
     except ImportError as exc:
         # Previously swallowed and reported as score 0 for every candidate.
         logger.error("LLM dependencies unavailable: %s", exc)
         return _llm_failure(
             STATUS_MODEL_UNAVAILABLE,
-            f"langchain import failed: {exc}. Install langchain and langchain-ollama.",
+            f"langchain import failed: {exc}. Install langchain and langchain-google-genai.",
+        )
+
+    if not settings.GEMINI_API_KEY:
+        logger.error("GEMINI_API_KEY is not configured")
+        return _llm_failure(
+            STATUS_MODEL_UNAVAILABLE,
+            "GEMINI_API_KEY is not set. Add it to the backend .env file.",
         )
 
     variables = {"resume_text": resume_limited, "job_description": job_limited}
@@ -350,31 +377,41 @@ def _run_llm_analysis(resume_text: str, job_description: str) -> Dict[str, Any]:
     for attempt in range(2):
         strict = attempt == 1
         try:
-            llm = ChatOllama(
-                model=OLLAMA_MODEL,
-                # Without this, langchain defaults to localhost:11434, which
-                # inside a container is the container itself.
-                base_url=OLLAMA_BASE_URL,
+            llm = ChatGoogleGenerativeAI(
+                model=GEMINI_MODEL,
+                google_api_key=settings.GEMINI_API_KEY,
                 temperature=0,
                 # Constrained decoding on the retry only, so the first attempt
                 # measures the model's natural output.
-                **({"format": "json"} if strict else {}),
-                client_kwargs={"timeout": OLLAMA_TIMEOUT_S},
+                **({"response_mime_type": "application/json"} if strict else {}),
+                timeout=GEMINI_TIMEOUT_S,
             )
             prompt = _build_prompt(ChatPromptTemplate, strict_retry=strict)
             response = (prompt | llm).invoke(variables)
         except Exception as exc:
-            logger.error("Ollama call failed (attempt %d): %s", attempt + 1, exc)
+            if _is_quota_exhausted(exc):
+                logger.error(
+                    "GEMINI QUOTA EXCEEDED: free-tier daily limit (20 requests/day for "
+                    "model=%s) reached on attempt %d. Quota resets on a rolling 24h "
+                    "window; enable billing to raise it. Details: %s",
+                    GEMINI_MODEL, attempt + 1, exc,
+                )
+                return _llm_failure(
+                    STATUS_MODEL_UNAVAILABLE,
+                    f"gemini free-tier daily quota exceeded (20 requests/day for {GEMINI_MODEL})",
+                    last_raw,
+                )
+            logger.error("Gemini call failed (attempt %d): %s", attempt + 1, exc)
             return _llm_failure(
                 STATUS_MODEL_UNAVAILABLE,
-                f"ollama request failed: {type(exc).__name__}: {exc}",
+                f"gemini request failed: {type(exc).__name__}: {exc}",
                 last_raw,
             )
 
         attempts = attempt + 1
-        raw_content = getattr(response, "content", "")
+        raw_content = _extract_text_content(getattr(response, "content", ""))
         payload, repair = parse_llm_response(raw_content)
-        last_raw = str(raw_content)
+        last_raw = raw_content
 
         if payload is not None:
             score = _clamp_score(payload.get("score"))
@@ -454,7 +491,7 @@ def analyze_resume(resume_text: str, job_description: str) -> Dict[str, Any]:
     """Main hybrid matching entrypoint.
 
     Steps:
-    1) Run LLM analysis (LangChain + Ollama mistral)
+    1) Run LLM analysis (LangChain + Gemini)
     2) Combine with SBERT semantic score
     3) Return a single status-tagged response payload
 
@@ -570,6 +607,5 @@ __all__ = [
     "STATUS_MODEL_UNAVAILABLE",
     "STATUS_INPUT_INVALID",
     "NON_SCORED_STATUSES",
-    "OLLAMA_MODEL",
-    "OLLAMA_BASE_URL",
+    "GEMINI_MODEL",
 ]

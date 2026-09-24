@@ -29,6 +29,7 @@ from app.services.auth import (
     consume_password_reset_token,
 )
 from app.services.email import send_password_reset_otp_email
+from app.services.crypto import encrypt_secret, decrypt_secret
 
 DEV_FRONTEND_ORIGINS = {
     "http://localhost:3000",
@@ -73,7 +74,9 @@ async def auth_register(req: User):
         "email": email,
         "password_hash": hashed,
         "role": req.role,
-        "totp_secret": secret,
+        # Stored encrypted at rest; the plaintext secret is only ever returned
+        # once in this response so the user can save it / scan the QR code.
+        "totp_secret": encrypt_secret(secret),
         "twofa_enabled": True,
         "created_at": datetime.utcnow().isoformat(),
     }
@@ -133,6 +136,10 @@ async def auth_verify_otp(req: VerifyOtpRequest, response: Response, request: Re
     secret = user.get("totp_secret")
     if not secret:
         raise HTTPException(status_code=400, detail="TOTP not configured")
+    try:
+        secret = decrypt_secret(secret)
+    except Exception:
+        pass  # legacy plaintext secret stored before encryption was added
     if not verify_totp_code(secret, req.code):
         raise HTTPException(status_code=401, detail="Invalid OTP code")
     

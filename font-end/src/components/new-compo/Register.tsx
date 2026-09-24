@@ -3,7 +3,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Lock, Mail, Eye, EyeOff, Shield, User, Briefcase, Copy } from 'lucide-react';
+import { Lock, Mail, Eye, EyeOff, Shield, User, Briefcase, Copy, AlertTriangle } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 
 export interface RegisterUIProps {
@@ -30,6 +30,9 @@ export interface RegisterUIProps {
   showOtpModal: boolean;
   setShowOtpModal: (show: boolean) => void;
   otpAuthUrl: string;
+  otpSecret: string;
+  showSecret: boolean;
+  setShowSecret: (show: boolean) => void;
   handleRegister: (e: React.FormEvent) => Promise<void>;
   copyToClipboard: (text: string) => Promise<void>;
 }
@@ -58,6 +61,9 @@ export function RegisterUI({
   showOtpModal,
   setShowOtpModal,
   otpAuthUrl,
+  otpSecret,
+  showSecret,
+  setShowSecret,
   handleRegister,
   copyToClipboard
 }: RegisterUIProps) {
@@ -358,6 +364,40 @@ export function RegisterUI({
                       </div>
                     </div>
                     <p className="text-xs text-gray-500">Scan with any TOTP-compatible app.</p>
+                  </section>
+                )}
+
+                {otpSecret && (
+                  <section className="space-y-2">
+                    <h2 className="text-sm font-medium text-gray-900">Recovery Secret Key</h2>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 min-w-0 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 font-mono tracking-wider overflow-hidden text-ellipsis whitespace-nowrap">
+                        {showSecret ? otpSecret : '•'.repeat(otpSecret.length)}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="h-8 px-3 text-xs font-medium"
+                        onClick={() => setShowSecret(!showSecret)}
+                      >
+                        {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="h-8 px-3 text-xs font-medium"
+                        onClick={() => copyToClipboard(otpSecret)}
+                      >
+                        <Copy className="w-4 h-4 mr-1" /> Copy
+                      </Button>
+                    </div>
+                    <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                      <p className="text-xs text-amber-800">
+                        Write down or securely save this secret key now. It won't be shown again, and it's the
+                        only way to recover or re-scan your QR code if you lose access to your authenticator app.
+                      </p>
+                    </div>
                   </section>
                 )}
               </div>

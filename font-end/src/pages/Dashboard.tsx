@@ -28,7 +28,7 @@ export function Dashboard() {
       userRole={user?.role}
       currentMonthCount={currentMonthCandidateCount}
       candidateTrendValue={null}
-      candidateTrendLabel="No trend data"
+//      candidateTrendLabel="No trend data"
       hiredThisMonthCount={hiredThisMonthCount}
       avgTimeToHire={avgTimeToHire}
       dropOffRate={dropOffRate}
