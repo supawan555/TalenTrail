@@ -1,0 +1,18 @@
+# Robot argument file for local E2E runs (servers already up).
+#   venv\Scripts\robot.exe --argumentfile e2e/args/local.args e2e
+--outputdir
+e2e/results
+--variable
+BASE_URL:http://localhost:3000
+--variable
+API_URL:http://127.0.0.1:8000
+--include
+P0
+--include
+P1
+--loglevel
+INFO
+--report
+report.html
+--log
+log.html

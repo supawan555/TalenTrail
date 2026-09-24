@@ -57,3 +57,18 @@ coverage.xml
 htmlcov/
 pytest-report.xml
 *.log
+
+# =====================
+# E2E (Robot Framework)
+# `env/` above (virtualenv rule) also swallows e2e/env/ - re-include it so
+# e2e.env.example (which run.ps1 needs) is committed; the real e2e.env stays ignored.
+!/e2e/env/
+/venv/
+/e2e/results/
+/e2e/env/e2e.env
+BackEnd/.env.e2e-backup
+# safety net if `robot` is ever run from the repo root without --outputdir
+/log.html
+/report.html
+/output.xml
+/playwright-log.txt
