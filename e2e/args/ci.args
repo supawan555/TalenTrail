@@ -1,0 +1,26 @@
+# Robot argument file for CI (headless, no flaky/slow tests, JUnit output).
+#   robot --argumentfile e2e/args/ci.args e2e
+--outputdir
+e2e/results
+--variable
+BASE_URL:http://localhost:3000
+--variable
+API_URL:http://127.0.0.1:8000
+--variable
+HEADLESS:True
+--include
+P0
+--include
+P1
+--exclude
+slow
+--exclude
+flaky
+--loglevel
+INFO
+--xunit
+xunit.xml
+--report
+report.html
+--log
+log.html
