@@ -1,29 +1,33 @@
 from datetime import datetime, timezone
-import os
 from app.ml.resume_matcher import analyze_resume
 from app.ml.resume_extractor import extract_resume_text, extract_resume_data
 from app.db import candidate_collection, job_collection
+from app.utils import storage
 
 #ml process
-async def process_candidate_ml_pipeline(candidate_data: dict, resume_path: str = None):
+async def process_candidate_ml_pipeline(candidate_data: dict, resume_key: str = None):
+    """``resume_key`` is a storage key (see app.utils.storage), not a disk path."""
     position = candidate_data.get("position")
-    
+
     # 1. ป้องกัน KeyError: สร้าง dict เปล่ารอไว้ก่อนเลยถ้ายังไม่มี
     if not isinstance(candidate_data.get("resumeAnalysis"), dict):
         candidate_data["resumeAnalysis"] = {}
 
     # 2. Extract Text & ML Data
     resume_text = ""
-    if resume_path and os.path.exists(resume_path):
+    if resume_key:
         try:
-            resume_text = extract_resume_text(resume_path)
-            extracted = extract_resume_data(resume_text) or {}
+            # PyMuPDF needs a real file; with Blob storage this is a temp copy
+            with storage.local_copy(resume_key) as path:
+                if path:
+                    resume_text = extract_resume_text(path)
+                    extracted = extract_resume_data(resume_text) or {}
 
-            # เติมข้อมูลที่ขาด
-            for field in ["email", "phone", "skills"]:
-                if extracted.get(field): # ถ้า AI แกะเจอ ให้เอาค่าจาก AI เป็นหลัก
-                    candidate_data[field] = extracted[field]
-            candidate_data["resumeAnalysis"].update(extracted)
+                    # เติมข้อมูลที่ขาด
+                    for field in ["email", "phone", "skills"]:
+                        if extracted.get(field): # ถ้า AI แกะเจอ ให้เอาค่าจาก AI เป็นหลัก
+                            candidate_data[field] = extracted[field]
+                    candidate_data["resumeAnalysis"].update(extracted)
         except Exception as e:
             print(f"ML Extraction Error: {e}")
 

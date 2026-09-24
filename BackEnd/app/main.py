@@ -3,7 +3,6 @@ import os
 import sys
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 # Ensure the BackEnd directory (parent of this app/) is on sys.path so
 # absolute imports like `from app.config import ...` work even if started inside app/.
@@ -22,10 +21,10 @@ from app.routers import uploads as uploads_router
 from app.routers import dashboard as dashboard_router
 from app.routers import settings as settings_router
 from app.routers import notes as notes_router
+from app.routers import cron as cron_router
 from app.services.job_preload import register_startup
 from app.services.auto_archive_hired import register_auto_archive
 from app.ml.health import register_llm_healthcheck
-from app.utils.file_storage import UPLOAD_DIR
 
 app = FastAPI(title="TalentTail API", version="0.1.0")
 
@@ -39,8 +38,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Static uploads directory (mounted at /uploads)
-app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+# Uploaded files are served by uploads_router's GET /uploads/{key} (login
+# required), not a static mount, so the same URL works on local disk and on
+# Vercel Blob.
 
 # Register routers
 app.include_router(auth_router.router)
@@ -53,6 +53,7 @@ app.include_router(uploads_router.legacy_router)
 app.include_router(dashboard_router.router)
 app.include_router(settings_router.router)
 app.include_router(notes_router.router)
+app.include_router(cron_router.router)
 
 # Startup preload
 register_startup(app)
