@@ -46,6 +46,36 @@ export const useCandidateProfile = (
         return `${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`
     }, [liveCandidate])
 
+    // An iframe pointed straight at the API shows the server's raw error text when
+    // the file is gone, so fetch the PDF first and preview it only if it loaded.
+    const [resumePreviewUrl, setResumePreviewUrl] = useState<string | undefined>(undefined)
+    const [resumeMissing, setResumeMissing] = useState(false)
+
+    useEffect(() => {
+        setResumePreviewUrl(undefined)
+        setResumeMissing(false)
+        if (!resolvedResumeUrl) return
+
+        let cancelled = false
+        let objectUrl: string | undefined
+        fetch(resolvedResumeUrl, { credentials: 'include' })
+            .then(async (res) => {
+                if (!res.ok) throw new Error(`resume request failed: ${res.status}`)
+                const blob = await res.blob()
+                if (cancelled) return
+                objectUrl = URL.createObjectURL(blob)
+                setResumePreviewUrl(objectUrl)
+            })
+            .catch(() => {
+                if (!cancelled) setResumeMissing(true)
+            })
+
+        return () => {
+            cancelled = true
+            if (objectUrl) URL.revokeObjectURL(objectUrl)
+        }
+    }, [resolvedResumeUrl])
+
     // HELPERS
 
     const normalizeNoteType = (value: unknown): string => {
@@ -167,6 +197,8 @@ export const useCandidateProfile = (
         liveCandidate,
         notes,
         resolvedResumeUrl,
+        resumePreviewUrl,
+        resumeMissing,
         navigate,
 
         showEditModal,

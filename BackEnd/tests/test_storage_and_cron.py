@@ -175,6 +175,25 @@ class TestBlobStorage:
         assert storage.read("resume_d.pdf") == b"hello"
         assert storage.read("resume_nope.pdf") is None
 
+    def test_read_returns_none_when_the_sdk_raises_another_blob_error(
+        self, blob_store: dict, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """
+        Scenario: A key from before the Blob migration (the file only ever
+                  lived on local disk) makes the SDK raise an access error
+                  instead of BlobNotFoundError.
+        Expected: read() returns None, so GET /uploads/{key} answers 404
+                  rather than crashing with a 500.
+        """
+        def raising_get(path, **_):
+            raise vercel_blob.BlobAccessError()
+
+        monkeypatch.setattr(vercel_blob, "get", raising_get)
+
+        assert storage.read("resume_legacy.pdf") is None
+        with storage.local_copy("resume_legacy.pdf") as path:
+            assert path is None
+
     def test_local_copy_downloads_to_a_temp_file_and_cleans_up(self, blob_store: dict) -> None:
         """
         Scenario: The ML pipeline needs a real path but the file is a blob.

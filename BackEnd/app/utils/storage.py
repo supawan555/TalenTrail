@@ -15,6 +15,7 @@ part, so it cannot be used to reach files outside the store.
 from __future__ import annotations
 
 import contextlib
+import logging
 import os
 import re
 import tempfile
@@ -24,6 +25,8 @@ from fastapi import HTTPException, UploadFile
 
 from app.config import settings
 from app.utils.file_storage import UPLOAD_DIR
+
+logger = logging.getLogger("talenttrail.storage")
 
 URL_PREFIX = "/uploads/"
 # Blob pathnames are namespaced so the store can hold other things later.
@@ -94,6 +97,14 @@ def read(key: str) -> Optional[bytes]:
         try:
             result = blob.get(BLOB_FOLDER + key, access="private")
         except blob.BlobNotFoundError:
+            return None
+        except blob.BlobError:
+            # Resumes uploaded before the Blob migration were written to local
+            # disk and never reached the store, so their keys point at nothing
+            # here. The SDK does not always report that as a 404; log the real
+            # error (it also catches a missing or invalid token) and treat the
+            # file as missing instead of failing the request with a 500.
+            logger.exception("Blob read failed for key %s", key)
             return None
         if result is None or getattr(result, "status_code", 200) != 200:
             return None
