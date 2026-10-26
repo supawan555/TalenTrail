@@ -36,10 +36,11 @@ class Settings(BaseSettings):
     # Off by default; set ALLOW_ADMIN_2FA_BYPASS=true only in a local .env.
     ALLOW_ADMIN_2FA_BYPASS: bool = Field(default=False)
 
-    # Where uploaded resumes are stored: "local" (disk, for dev/Render) or
-    # "vercel_blob" (private Vercel Blob store; required on Vercel, whose disk
-    # is wiped between requests).
-    FILE_STORAGE: str = Field(default="local")
+    # Where uploaded resumes are stored: "mongo" (the resume_files collection in
+    # the primary database, so every machine and every deployment sees the same
+    # files), "local" (disk) or "vercel_blob" (private Vercel Blob store, which
+    # needs BLOB_READ_WRITE_TOKEN).
+    FILE_STORAGE: str = Field(default="mongo")
     # Vercel rejects request bodies over 4.5 MB, so cap uploads below that.
     MAX_UPLOAD_MB: int = Field(default=4)
 

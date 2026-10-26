@@ -1,8 +1,13 @@
 """Storage for uploaded resume files.
 
-Two backends, picked by ``settings.FILE_STORAGE``:
+Three backends, picked by ``settings.FILE_STORAGE``:
 
-* ``"local"``       - files live in ``UPLOAD_DIR`` on disk (local dev, Render).
+* ``"mongo"``       - the default. Each file is one document in the
+  ``resume_files`` collection of the primary database (``_id`` is the key,
+  ``data`` the bytes). Uploads are capped at ``MAX_UPLOAD_MB``, well under
+  MongoDB's 16 MB document limit, so no chunking is needed. Every machine and
+  every deployment that shares the database sees the same files.
+* ``"local"``       - files live in ``UPLOAD_DIR`` on disk (tests, offline dev).
 * ``"vercel_blob"`` - files live in a *private* Vercel Blob store. Required on
   Vercel, whose disk is wiped between requests. The SDK reads its token only
   from ``BLOB_READ_WRITE_TOKEN`` (or ``VERCEL_BLOB_READ_WRITE_TOKEN``); without
@@ -20,11 +25,14 @@ import logging
 import os
 import re
 import tempfile
+from datetime import datetime, timezone
 from typing import Iterator, Optional
 
+from bson import Binary
 from fastapi import HTTPException, UploadFile
 
 from app.config import settings
+from app.db import resume_files_collection
 from app.utils.file_storage import UPLOAD_DIR
 
 logger = logging.getLogger("talenttrail.storage")
@@ -52,8 +60,16 @@ def url_for(key: str) -> str:
     return f"{URL_PREFIX}{key}"
 
 
+def _backend() -> str:
+    return settings.FILE_STORAGE.strip().lower()
+
+
 def _use_blob() -> bool:
-    return settings.FILE_STORAGE.strip().lower() == "vercel_blob"
+    return _backend() == "vercel_blob"
+
+
+def _use_mongo() -> bool:
+    return _backend() == "mongo"
 
 
 def _local_path(key: str) -> str:
@@ -78,7 +94,19 @@ def save(key: str, data: bytes, content_type: str = "application/pdf") -> str:
     """Store ``data`` under ``key`` and return the key."""
     if not is_valid_key(key):
         raise ValueError(f"invalid storage key: {key!r}")
-    if _use_blob():
+    if _use_mongo():
+        resume_files_collection.replace_one(
+            {"_id": key},
+            {
+                "_id": key,
+                "data": Binary(data),
+                "content_type": content_type,
+                "size": len(data),
+                "uploaded_at": datetime.now(timezone.utc),
+            },
+            upsert=True,
+        )
+    elif _use_blob():
         from vercel import blob
 
         blob.put(BLOB_FOLDER + key, data, access="private", content_type=content_type)
@@ -92,6 +120,9 @@ def read(key: str) -> Optional[bytes]:
     """Return the file's bytes, or None if the key is invalid or missing."""
     if not is_valid_key(key):
         return None
+    if _use_mongo():
+        doc = resume_files_collection.find_one({"_id": key}, {"data": 1})
+        return bytes(doc["data"]) if doc else None
     if _use_blob():
         from vercel import blob
 
@@ -120,6 +151,9 @@ def delete(key: str) -> None:
     """Remove the file if it exists. Invalid or missing keys are ignored."""
     if not is_valid_key(key):
         return
+    if _use_mongo():
+        resume_files_collection.delete_one({"_id": key})
+        return
     if _use_blob():
         from vercel import blob
 
@@ -134,13 +168,13 @@ def delete(key: str) -> None:
 def local_copy(key: str) -> Iterator[Optional[str]]:
     """Yield a filesystem path to the file, or None if it is missing.
 
-    PyMuPDF needs a real path. Local files are used in place; blobs are
-    downloaded to a temp file that is deleted afterwards.
+    PyMuPDF needs a real path. Local files are used in place; files in MongoDB
+    or Blob are written to a temp file that is deleted afterwards.
     """
     if not is_valid_key(key):
         yield None
         return
-    if not _use_blob():
+    if _backend() == "local":
         path = _local_path(key)
         yield path if os.path.isfile(path) else None
         return

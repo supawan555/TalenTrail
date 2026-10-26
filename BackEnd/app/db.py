@@ -15,6 +15,7 @@ auth_users_collection = primary_db["auth_users"]
 auth_sessions_collection = primary_db["auth_sessions"]
 auth_password_resets_collection = primary_db["auth_password_resets"]
 candidate_notes_collection = primary_db["candidate_notes"]
+resume_files_collection = primary_db["resume_files"]
 
 # HR platform DB collections
 jobs_collection = hr_db["jobs"]
@@ -28,6 +29,7 @@ __all__ = [
     "auth_sessions_collection",
     "auth_password_resets_collection",
     "candidate_notes_collection",
+    "resume_files_collection",
     "jobs_collection",
     "users_collection",
 ]
