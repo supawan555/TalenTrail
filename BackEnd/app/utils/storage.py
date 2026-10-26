@@ -4,9 +4,10 @@ Two backends, picked by ``settings.FILE_STORAGE``:
 
 * ``"local"``       - files live in ``UPLOAD_DIR`` on disk (local dev, Render).
 * ``"vercel_blob"`` - files live in a *private* Vercel Blob store. Required on
-  Vercel, whose disk is wiped between requests. The SDK authenticates with
-  ``BLOB_READ_WRITE_TOKEN``, or automatically via OIDC when the store is
-  connected to the Vercel project.
+  Vercel, whose disk is wiped between requests. The SDK reads its token only
+  from ``BLOB_READ_WRITE_TOKEN`` (or ``VERCEL_BLOB_READ_WRITE_TOKEN``); without
+  one every save raises ``BlobNoTokenProvidedError``. Connecting the store to
+  the Vercel project adds the variable, but only to deployments made after.
 
 Every file is addressed by a bare *key* such as ``resume_<uuid>.pdf`` and is
 exposed to the frontend as ``/uploads/<key>``. A key never contains a directory
@@ -99,11 +100,10 @@ def read(key: str) -> Optional[bytes]:
         except blob.BlobNotFoundError:
             return None
         except blob.BlobError:
-            # Resumes uploaded before the Blob migration were written to local
-            # disk and never reached the store, so their keys point at nothing
-            # here. The SDK does not always report that as a 404; log the real
-            # error (it also catches a missing or invalid token) and treat the
-            # file as missing instead of failing the request with a 500.
+            # A missing or invalid token (BlobNoTokenProvidedError) or an access
+            # error lands here rather than in BlobNotFoundError. Log the real
+            # error so the misconfiguration is visible, and treat the file as
+            # missing instead of failing the request with a 500.
             logger.exception("Blob read failed for key %s", key)
             return None
         if result is None or getattr(result, "status_code", 200) != 200:
