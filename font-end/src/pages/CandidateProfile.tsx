@@ -22,6 +22,8 @@ export function CandidateProfile({
     liveCandidate,
     notes,
     resolvedResumeUrl,
+    resumePreviewUrl,
+    resumeMissing,
     showEditModal,
     setShowEditModal,
     showDeleteDialog,
@@ -64,6 +66,8 @@ export function CandidateProfile({
       liveCandidate={liveCandidate}
       notes={notes}
       resolvedResumeUrl={resolvedResumeUrl}
+      resumePreviewUrl={resumePreviewUrl}
+      resumeMissing={resumeMissing}
       nextStage={nextStage}
       canEditStartDate={canEditStartDate}
       showEditModal={showEditModal}

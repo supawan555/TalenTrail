@@ -25,6 +25,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import mongomock
 import pytest
 from bson import ObjectId
 from fastapi import FastAPI, HTTPException
@@ -76,6 +77,15 @@ def blob_store(monkeypatch: pytest.MonkeyPatch) -> dict:
     monkeypatch.setattr(vercel_blob, "get", fake_get)
     monkeypatch.setattr(vercel_blob, "delete", fake_delete)
     return {"files": files, "calls": calls}
+
+
+@pytest.fixture()
+def mongo_store(monkeypatch: pytest.MonkeyPatch):
+    """Switch to MongoDB storage backed by an empty mongomock collection."""
+    collection = mongomock.MongoClient()["storage_test"]["resume_files"]
+    monkeypatch.setattr(settings, "FILE_STORAGE", "mongo")
+    monkeypatch.setattr(storage, "resume_files_collection", collection)
+    return collection
 
 
 def _upload(data: bytes) -> SimpleNamespace:
@@ -152,6 +162,63 @@ class TestLocalStorage:
 
 
 # ===========================================================================
+# MongoDB backend (mongomock)
+# ===========================================================================
+class TestMongoStorage:
+    def test_save_read_delete_round_trip(self, mongo_store) -> None:
+        """
+        Scenario: Save a file, read it back, delete it.
+        Expected: One document keyed by the storage key holds the bytes and
+                  their size; read returns them; delete removes the document.
+        """
+        storage.save("resume_m.pdf", b"%PDF-1.4 mongo")
+
+        doc = mongo_store.find_one({"_id": "resume_m.pdf"})
+        assert bytes(doc["data"]) == b"%PDF-1.4 mongo"
+        assert doc["size"] == len(b"%PDF-1.4 mongo")
+        assert doc["content_type"] == "application/pdf"
+        assert storage.read("resume_m.pdf") == b"%PDF-1.4 mongo"
+
+        storage.delete("resume_m.pdf")
+        assert mongo_store.count_documents({}) == 0
+        assert storage.read("resume_m.pdf") is None
+
+    def test_saving_the_same_key_twice_replaces_the_file(self, mongo_store) -> None:
+        """
+        Scenario: A resume is replaced under the same key.
+        Expected: Still one document, holding the new bytes.
+        """
+        storage.save("resume_r.pdf", b"old")
+        storage.save("resume_r.pdf", b"new")
+
+        assert mongo_store.count_documents({}) == 1
+        assert storage.read("resume_r.pdf") == b"new"
+
+    def test_missing_and_invalid_keys_read_as_none(self, mongo_store) -> None:
+        """
+        Scenario: Read a key that was never saved, and a traversal key.
+        Expected: Both return None, so GET /uploads/{key} answers 404.
+        """
+        assert storage.read("resume_nope.pdf") is None
+        assert storage.read("../evil.pdf") is None
+
+    def test_local_copy_writes_a_temp_file_and_cleans_up(self, mongo_store) -> None:
+        """
+        Scenario: The ML pipeline needs a real path for a file kept in MongoDB.
+        Expected: A temp file with the stored bytes exists inside the block and
+                  is deleted afterwards; a missing key yields None.
+        """
+        storage.save("resume_t.pdf", b"%PDF temp")
+
+        with storage.local_copy("resume_t.pdf") as path:
+            assert Path(path).read_bytes() == b"%PDF temp"
+            kept = path
+        assert not os.path.exists(kept)
+        with storage.local_copy("resume_missing.pdf") as path:
+            assert path is None
+
+
+# ===========================================================================
 # Vercel Blob backend (SDK faked)
 # ===========================================================================
 class TestBlobStorage:
@@ -174,6 +241,25 @@ class TestBlobStorage:
 
         assert storage.read("resume_d.pdf") == b"hello"
         assert storage.read("resume_nope.pdf") is None
+
+    def test_read_returns_none_when_the_sdk_raises_another_blob_error(
+        self, blob_store: dict, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """
+        Scenario: A key from before the Blob migration (the file only ever
+                  lived on local disk) makes the SDK raise an access error
+                  instead of BlobNotFoundError.
+        Expected: read() returns None, so GET /uploads/{key} answers 404
+                  rather than crashing with a 500.
+        """
+        def raising_get(path, **_):
+            raise vercel_blob.BlobAccessError()
+
+        monkeypatch.setattr(vercel_blob, "get", raising_get)
+
+        assert storage.read("resume_legacy.pdf") is None
+        with storage.local_copy("resume_legacy.pdf") as path:
+            assert path is None
 
     def test_local_copy_downloads_to_a_temp_file_and_cleans_up(self, blob_store: dict) -> None:
         """

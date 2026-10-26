@@ -39,6 +39,8 @@ interface CandidateProfileUIProps {
   liveCandidate: Candidate;
   notes: any[];
   resolvedResumeUrl: string | undefined;
+  resumePreviewUrl: string | undefined;
+  resumeMissing: boolean;
   nextStage: Candidate['stage'] | null;
   canEditStartDate: boolean;
 
@@ -84,6 +86,8 @@ export function CandidateProfileUI({
   liveCandidate,
   notes,
   resolvedResumeUrl,
+  resumePreviewUrl,
+  resumeMissing,
   nextStage,
   canEditStartDate,
 
@@ -279,26 +283,34 @@ export function CandidateProfileUI({
                   <FileText className="w-5 h-5 mr-2" />
                   Resume
                 </CardTitle>
-                <Button variant="outline" size="sm" asChild>
-                  <a href={resolvedResumeUrl} target="_blank" rel="noreferrer">
-                    <Download className="w-4 h-4 mr-2" />
-                    Download
-                  </a>
-                </Button>
+                {resolvedResumeUrl && !resumeMissing && (
+                  <Button variant="outline" size="sm" asChild>
+                    <a href={resolvedResumeUrl} target="_blank" rel="noreferrer">
+                      <Download className="w-4 h-4 mr-2" />
+                      Download
+                    </a>
+                  </Button>
+                )}
               </div>
             </CardHeader>
             <CardContent>
-              {resolvedResumeUrl ? (
+              {!resolvedResumeUrl ? (
+                <p className="text-sm text-muted-foreground">No resume uploaded.</p>
+              ) : resumeMissing ? (
+                <p className="text-sm text-muted-foreground">
+                  The resume file could not be found. Upload it again from Edit.
+                </p>
+              ) : resumePreviewUrl ? (
                 <div className="border border-border/40 rounded-lg overflow-hidden">
                   <iframe
-                    src={`${resolvedResumeUrl}#toolbar=1&navpanes=0&scrollbar=1`}
+                    src={`${resumePreviewUrl}#toolbar=1&navpanes=0&scrollbar=1`}
                     title="Resume PDF"
                     className="w-full"
                     style={{ height: '75vh' }}
                   />
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">No resume uploaded.</p>
+                <p className="text-sm text-muted-foreground">Loading resume...</p>
               )}
             </CardContent>
           </Card>
