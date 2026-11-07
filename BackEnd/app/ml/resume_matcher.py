@@ -5,6 +5,7 @@ import re
 from typing import Any, Dict, Optional, Tuple
 
 from ..config import settings
+from .pii import redact_pii
 
 # Lazy import to avoid heavy dependencies at module import time
 try:
@@ -345,7 +346,9 @@ def _run_llm_analysis(resume_text: str, job_description: str) -> Dict[str, Any]:
             f"job_description must be str, got {type(job_description).__name__}"
         )
 
-    resume_limited = resume_text[:RESUME_CHAR_BUDGET]
+    # Identifiers are removed before the budget is applied, so the shorter
+    # placeholders leave room for more of the work history.
+    resume_limited = redact_pii(resume_text)[:RESUME_CHAR_BUDGET]
     job_limited = job_description[:JOB_CHAR_BUDGET]
     if not resume_limited.strip():
         return _llm_failure(STATUS_INPUT_INVALID, "resume_text is empty")
