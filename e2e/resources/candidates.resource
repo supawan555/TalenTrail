@@ -35,7 +35,7 @@ Add Candidate Via Modal
     Wait For Elements State      role=dialog >> text="Add New Candidate"    visible    timeout=${DEFAULT_TIMEOUT}
     Fill Text                    role=dialog >> id=name    ${name}
     Select First Radix Option    role=dialog >> id=position
-    IF    "${resume_path}" != ""
+    IF    $resume_path
         Upload File By Selector    role=dialog >> id=resume-upload    ${resume_path}
         Wait For Elements State    role=dialog >> css=.text-primary    visible    timeout=${DEFAULT_TIMEOUT}
     END

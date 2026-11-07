@@ -16,6 +16,7 @@ import json
 import pytest
 
 from app.ml import resume_matcher
+from app.ml.pii import redact_pii
 from tests.eval.fixtures import resumes
 from tests.eval.fixtures.cases import CASES_BY_NAME
 from tests.eval.mocks import fixed_responder, install_fake_langchain
@@ -58,7 +59,8 @@ class TestLimits:
     def test_short_inputs_pass_through_whole(self) -> None:
         resume = resumes.STRONG_SENIOR_FRONTEND
         assert len(resume) < RESUME_LIMIT
-        assert sent_resume(resume, "Frontend role") == resume
+        # Whole apart from the identifiers, which are redacted (see test_pii.py).
+        assert sent_resume(resume, "Frontend role") == redact_pii(resume)
 
     def test_truncation_is_silent(self) -> None:
         """No marker is added, so the model cannot tell it received a fragment."""
